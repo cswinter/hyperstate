@@ -1,16 +1,18 @@
 # HyperState
 
 
-Experimental and highly opinionated library for managing configs and mutable program state of machine learning training systems.
+Opinionated library for managing hyperparameter configs and mutable program state of machine learning training systems.
 
-Features:
-- load yaml/ron config files as dataclasses
-- command line flag to override any config values
-- checkpoint and restore full program state
-- human readable and editable checkpoints
-- (planned) versioning and schema evolution
-- large binary objects are stored in separate files and only loaded when accessed
-- (planned) edit hyperparameters of running experiment on the fly without restarts
+**Key Features**:
+- (De)serialize nested Python dataclasses as [RON files](https://github.com/ron-rs/ron)
+- Override any config value from the command line 
+- Automatic checkpointing and restoration of full program state
+- Checkpoints are (partially) human readable and can be modified in a text editor
+- Powerful tools for versioning and schema evolution that can detect breaking changes and make it easy to restructure your program while remaining backwards compatible with old checkpoints
+- Large binary objects in checkpoints can be loaded lazily only when accessed
+- DSL for hyperparameter schedules 
+- (planned) Edit hyperparameters of running experiments on the fly without restarts
+- (planned) Usable without preserved vergetables
 
 ## Config
 
