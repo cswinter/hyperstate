@@ -60,7 +60,7 @@ config: Config = hyperstate.load(Config, "config.yaml", overrides=overrides)
 ```
 
 Configs can be serialized with `hyperstate.dump`.
-The second argument to `dump` is a path to a file, which can be omitted to return the serialized config as a string instead of saving it to a file:
+The second argument to `dump` is a path to a file, and can be omitted to return the serialized config as a string instead of saving it to a file:
 
 ```python
 >>> print(hyperstate.dump(Config(lr=0.1, batch_size=256))
