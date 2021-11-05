@@ -12,7 +12,7 @@ Opinionated library for managing hyperparameter configs and mutable program stat
 - Large binary objects in checkpoints can be loaded lazily only when accessed
 - DSL for hyperparameter schedules 
 - (planned) Edit hyperparameters of running experiments on the fly without restarts
-- (planned) Usable without preserved vergetables
+- (planned) Usable without fermented vegetables
 
 ## Config
 
