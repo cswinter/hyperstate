@@ -138,7 +138,11 @@ def from_dict(
         return value
     elif is_dataclass(clz):
         # TODO: better error
-        assert isinstance(value, dict), f"{value} is not a dict"
+        if value == ():
+            value = {}
+        elif isnamedtupleinstance(value):
+            value = value._asdict()
+        assert isinstance(value, dict), f"{value} cannot be deserialized as dataclass {clz}"
         kwargs = {}
         remaining_fields = set(clz.__dataclass_fields__.keys())
         for field_name, v in value.items():
@@ -223,3 +227,11 @@ def _qualified_name(clz):
         return repr(clz)
     else:
         return f"{clz.__module__}.{clz.__name__}"
+
+def isnamedtupleinstance(x):
+    t = type(x)
+    b = t.__bases__
+    if len(b) != 1 or b[0] != tuple: return False
+    f = getattr(t, '_fields', None)
+    if not isinstance(f, tuple): return False
+    return all(type(n)==str for n in f)
