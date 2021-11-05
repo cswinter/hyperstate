@@ -30,7 +30,6 @@ from hyperstate.serde import (
 )
 from .lazy import LazyDeserializer, LazySerializer
 
-import torch
 import pyron
 
 from hyperstate.schedule import Schedule, _parse_schedule
@@ -197,7 +196,9 @@ def _typed_load(
 
 
 def typed_load(
-    clz: Type[T], source: Union[str, Path], overrides: Optional[List[str]] = None,
+    clz: Type[T],
+    source: Union[str, Path],
+    overrides: Optional[List[str]] = None,
 ) -> T:
     return _typed_load(clz, source, overrides)[0]
 
@@ -222,7 +223,12 @@ class OverridesDeserializer(Deserializer):
     overrides: List[str]
     applied_overrides: bool = False
 
-    def deserialize(self, clz: Type[T], value: Any, path: str,) -> Tuple[T, bool, bool]:
+    def deserialize(
+        self,
+        clz: Type[T],
+        value: Any,
+        path: str,
+    ) -> Tuple[T, bool, bool]:
         if self.applied_overrides:
             return None, False, False
         for override in self.overrides:
@@ -243,7 +249,12 @@ class ScheduleDeserializer(Deserializer):
     def __init__(self):
         self.schedules = {}
 
-    def deserialize(self, clz: Type[T], value: Any, path: str,) -> Tuple[T, bool, bool]:
+    def deserialize(
+        self,
+        clz: Type[T],
+        value: Any,
+        path: str,
+    ) -> Tuple[T, bool, bool]:
         if (clz == int or clz == float) and isinstance(value, str) and "@" in value:
             schedule = _parse_schedule(value)
             field_name = path.split(".")[-1]
@@ -270,6 +281,8 @@ class ScheduleSerializer(Serializer):
 
 
 def _dict_to_cpu(x: Any) -> Dict[str, Any]:
+    import torch
+
     if isinstance(x, torch.Tensor):
         return x.cpu().numpy()
     elif isinstance(x, dict):
@@ -282,7 +295,12 @@ def _dict_to_cpu(x: Any) -> Dict[str, Any]:
 
 @dataclass
 class ElideDefaults(Serializer):
-    def serialize(self, value: Any, path: str, named_tuples: bool,) -> Tuple[Any, bool]:
+    def serialize(
+        self,
+        value: Any,
+        path: str,
+        named_tuples: bool,
+    ) -> Tuple[Any, bool]:
         return None, False
 
     def modify_dataclass_attrs(self, value: Any, attrs: Dict[str, Any], path: str):
