@@ -264,7 +264,12 @@ class ScheduleDeserializer(Deserializer):
                 value = schedule.get_value(x)
                 setattr(self, field_name, clz(value))
 
-            self.schedules[path] = Schedule(update, value)
+            schedules = self.schedules
+            for segment in path.split(".")[:-1]:
+                if segment not in schedules:
+                    schedules[segment] = {}
+                schedules = self.schedules[segment]
+            schedules[field_name] = Schedule(update, value)
             value = schedule.get_value(0.0)
             return clz(value), True, False
         return None, False, False
