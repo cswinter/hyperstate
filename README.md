@@ -138,8 +138,8 @@ This file should commited to version control, and is used to detect changes to t
 #### `check-schema`
 
 The `check-schema` command compares your config class to a schema file and detects any backwards incompatible changes.
-It also emits a suggested list of `RewriteRules`s that you can copy into the `upgrade_rules` function.
-HyperState will not always be able to guess the correct `RewriteRules` so you still need to check that they are correct.
+It also emits a suggested list of [`RewriteRule`](#rewrite-rule)s that can upgrade old configs to the new schema.
+HyperState does not always guess the correct `RewriteRule`s so you still need to check that they are correct.
 
 ```
 $ python config.py check-schema
