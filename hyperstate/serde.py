@@ -24,7 +24,12 @@ T = TypeVar("T")
 
 class Serializer(ABC):
     @abstractmethod
-    def serialize(self, value: Any, path: str, named_tuples: bool,) -> Tuple[Any, bool]:
+    def serialize(
+        self,
+        value: Any,
+        path: str,
+        named_tuples: bool,
+    ) -> Tuple[Any, bool]:
         pass
 
     def modify_dataclass_attrs(self, value: Any, attrs: Dict[str, Any], path: str):
@@ -33,7 +38,12 @@ class Serializer(ABC):
 
 class Deserializer(ABC):
     @abstractmethod
-    def deserialize(self, clz: Type[T], value: Any, path: str,) -> Tuple[T, bool, bool]:
+    def deserialize(
+        self,
+        clz: Type[T],
+        value: Any,
+        path: str,
+    ) -> Tuple[T, bool, bool]:
         pass
 
 
@@ -142,7 +152,9 @@ def from_dict(
             value = {}
         elif isnamedtupleinstance(value):
             value = value._asdict()
-        assert isinstance(value, dict), f"{value} cannot be deserialized as dataclass {clz}"
+        assert isinstance(
+            value, dict
+        ), f"{value} cannot be deserialized as dataclass {clz}"
         kwargs = {}
         remaining_fields = set(clz.__dataclass_fields__.keys())
         for field_name, v in value.items():
@@ -228,10 +240,13 @@ def _qualified_name(clz):
     else:
         return f"{clz.__module__}.{clz.__name__}"
 
+
 def isnamedtupleinstance(x):
     t = type(x)
     b = t.__bases__
-    if len(b) != 1 or b[0] != tuple: return False
-    f = getattr(t, '_fields', None)
-    if not isinstance(f, tuple): return False
-    return all(type(n)==str for n in f)
+    if len(b) != 1 or b[0] != tuple:
+        return False
+    f = getattr(t, "_fields", None)
+    if not isinstance(f, tuple):
+        return False
+    return all(type(n) == str for n in f)

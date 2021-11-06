@@ -385,6 +385,7 @@ def cli():
 @cli.command()
 @click.argument("filename", default="config-schema.ron", type=click.Path())
 def dump_schema(filename: str):
+    global CONFIG_CLZ
     _dump_schema(filename, CONFIG_CLZ)
 
 

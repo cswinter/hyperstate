@@ -64,7 +64,12 @@ class LazyDeserializer(Deserializer, Generic[C]):
     path: Path
     lazy_fields: Dict[str, Tuple[C, str, bool]] = field(default_factory=dict)
 
-    def deserialize(self, clz: Type[T], value: Any, path: str,) -> Tuple[T, bool, bool]:
+    def deserialize(
+        self,
+        clz: Type[T],
+        value: Any,
+        path: str,
+    ) -> Tuple[T, bool, bool]:
         if inspect.isclass(clz) and issubclass(clz, Serializable):
             assert value == "<BLOB>" or value == "<blob:msgpack>"
             filepath = path.replace(".", "/").replace("[", "/").replace("]", "")
@@ -82,7 +87,12 @@ class LazyDeserializer(Deserializer, Generic[C]):
 class LazySerializer(Serializer):
     blobs: Dict[str, bytes] = field(default_factory=dict)
 
-    def serialize(self, value: Any, path: str, named_tuples: bool,) -> Tuple[Any, bool]:
+    def serialize(
+        self,
+        value: Any,
+        path: str,
+        named_tuples: bool,
+    ) -> Tuple[Any, bool]:
         if isinstance(value, Serializable):
             import dill
 
