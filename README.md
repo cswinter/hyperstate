@@ -84,7 +84,7 @@ Any snapshots that contain configs without a version field are assumed to have a
 ### `RewriteRule`
 
 Now suppose you modify your `Config` class, e.g. by renaming the `lr` field to `learning_rate`.
-To still be able to load old configs that are using `lr` instead of `learning_rate`, you increase the `version` to `1` and add an entry to the dictionary returned by `upgrade_rules` that tells HyperState to change `lr` to `learning_rate` whne upgrading configs from version `0`.
+To still be able to load old configs that are using `lr` instead of `learning_rate`, you increase the `version` to `1` and add an entry to the dictionary returned by `upgrade_rules` that tells HyperState to change `lr` to `learning_rate` when upgrading configs from version `0`.
 
 ```python
 from dataclasses import dataclass
