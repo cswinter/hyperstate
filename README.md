@@ -22,16 +22,19 @@ HyperState supports a strictly typed subset of Python objects:
 - primitives: `int`, `float`, `str`, `Enum`
 - objects with custom serialization logic: [`hyperstate.Serializable`](#serializable)
 
-Configs can be deserialized with `hyperstate.load`.
-The `load` method requires two arguments, the type/class of the config and a path to a config file:
+Use `hyperstate.dump` to serialize configs.
+The second argument to `dump` is a path to a file, and can be omitted to return the serialized config as a string instead of saving it to a file:
 
-```rust
-// config.ron
+```python
+>>> print(hyperstate.dump(Config(lr=0.1, batch_size=256))
 Config(
     lr: 0.1,
     batch_size: 256,
 )
 ```
+
+Use `hyperstate.load` to deserialize configs.
+The `load` method requires two arguments, the type/class of the config and a path to a config file:
 
 ```python
 @dataclass
@@ -59,15 +62,123 @@ overrides = ["optimizer.lr=0.1", "steps=100"]
 config: Config = hyperstate.load(Config, "config.yaml", overrides=overrides)
 ```
 
-Configs can be serialized with `hyperstate.dump`.
-The second argument to `dump` is a path to a file, and can be omitted to return the serialized config as a string instead of saving it to a file:
+## Versioning
+
+Versioning allows you to modify your `Config` class while still remaining compatible with checkpoints recorded at previous version.
+To benefit from versionining, your config must inherit `hyperstate.Versioned` and implement its `version` function:
 
 ```python
->>> print(hyperstate.dump(Config(lr=0.1, batch_size=256))
-Config(
-    lr: 0.1,
-    batch_size: 256,
-)
+@dataclass
+class Config(hyperstate.Versioned):
+    lr: float
+    batch_size: int
+    
+    @classmethod
+    def version(clz) -> int:
+        return 0
+```
+
+When serializing the config, hyperstate will now record an additional `version` field with the value of the current version.
+Any snapshots that contain configs without a version field are assumed to have a version of `0`.
+
+### `RewriteRule`
+
+Now suppose you modify your `Config` class, e.g. by renaming the `lr` field to `learning_rate`.
+To still be able to load old configs that are using `lr` instead of `learning_rate`, you increase the `version` to `1` and add an entry to the dictionary returned by `upgrade_rules` that tells HyperState to change `lr` to `learning_rate` whne upgrading configs from version `0`.
+
+```python
+from dataclasses import dataclass
+from typing import Dict, List
+from hyperstate import Versioned
+from hyperstate.schema.rewrite_rule import RenameField, RewriteRule
+
+@dataclass
+class Config(Versioned):
+    learning_rate: float
+    batch_size: int
+    
+    @classmethod
+    def version(clz) -> int:
+        return 1
+
+    @classmethod
+    def upgrade_rules(clz) -> Dict[int, List[RewriteRule]]:
+        """
+        Returns a list of rewrite rules that can be applied to the given version
+        to make it compatible with the next version.
+        """
+        return {
+            0: [RenameField(old_field=("lr",), new_field=("learning_rate",))],
+        }
+```
+
+In the majority of cases, you don't actually have to manually write out `RewriteRule`s.
+Instead, they are generated for you automatically by the [Schema Evolution CLI](schema-evolution-cli).
+
+### Schema evolution CLI
+
+HyperState comes with a command line tool for managing changes to your config schema.
+To access the CLI, simply add the following code to the Python file defining your config:
+
+```python
+# config.py
+from hyperstate import schema_evolution_cli
+
+if __name__ == "__main__":
+    schema_evolution_cli(Config)
+```
+
+Run `python config.py` to see a list of available commands, described in more detail below.
+
+#### `dump-schema`
+
+The `dump-schema` command creates a file describing the schema of your config.
+This file should commited to version control, and is used to detect changes to the config schema and perform automatic upgrades.
+
+#### `check-schema`
+
+The `check-schema` command compares your config class to a schema file and detects any backwards incompatible changes.
+It also emits a suggested list of `RewriteRules`s that you can copy into the `upgrade_rules` function.
+HyperState will not always be able to guess the correct `RewriteRules` so you still need to check that they are correct.
+
+```
+$ python config.py check-schema
+WARN  field renamed to learning_rate: lr
+WARN  schema changed but version identical
+Schema incompatible
+
+Proposed mitigations
+- add upgrade rules:
+    0: [
+        RenameField(old_field=('lr',), new_field=('learning_rate',)),
+    ],
+- bump version to 1
+```
+
+#### `upgrade-schema`
+
+The `upgrade-schema` command functions much the same as `check-schema`, but also updates your schema config files once all backwards-incompatability issues have been address.
+
+#### `upgrade-config`
+
+The `upgrade-config` command takes a list of paths to config files, and upgrades them to the latest version.
+
+### Automated Tests
+
+To prevent accidental backwards-incompatible modifications of your `Config` class, you can use the following code as an automated test that checks your config `Class` against a schema file created with [`dump-schema`](dump-schema): 
+
+```python
+from hyperstate.schema.schema_change import Severity
+from hyperstate.schema.schema_checker import SchemaChecker
+from hyperstate.schema.types import load_schema
+from config import Config
+
+def test_schema():
+    old = load_schema("config-schema.ron")
+    checker = SchemaChecker(old, Config)
+    if checker.severity() >= Severity.WARN:
+        print(checker.print_report())
+    assert checker.severity() == Severity.INFO
 ```
 
 ## State
