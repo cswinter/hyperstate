@@ -98,6 +98,7 @@ class HyperState(ABC, Generic[C, S]):
                 raise RuntimeError(
                     f"Failed to load state from {state_path}: {e}"
                 ) from e
+        _apply_schedules(self.state, self.config, self.schedules)
 
     @abstractmethod
     def initial_state(self) -> S:
@@ -280,8 +281,14 @@ class ScheduleSerializer(Serializer):
     schedules: Dict[str, Schedule]
 
     def serialize(self, value: Any, path: str, namedtuples: bool) -> Tuple[Any, bool]:
-        if path in self.schedules:
-            return self.schedules[path].unparsed, True
+        segments = path.split(".")
+        schedules = self.schedules
+        for segment in segments:
+            if segment not in schedules:
+                return None, False
+            schedules = schedules[segment]
+        if isinstance(schedules, Schedule):
+            return schedules.unparsed, True
         return None, False
 
 

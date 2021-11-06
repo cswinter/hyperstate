@@ -9,7 +9,7 @@ from hyperstate.hyperstate import HyperState
 from hyperstate.lazy import Lazy, Serializable
 
 
-@dataclass(frozen=True, eq=True)
+@dataclass(eq=True)
 class PPO:
     cliprange: float = 0.2
     gamma: float = 0.99
@@ -18,7 +18,7 @@ class PPO:
     value_loss_coeff: float = 1
 
 
-@dataclass(frozen=True, eq=True)
+@dataclass(eq=True)
 class Config:
     lr: float
     steps: int
@@ -64,7 +64,7 @@ def test_checkpoint():
                 cliprange: 0.3,
                 gamma: 0.999,
                 lambd: 0.95,
-                entcoeff: 0.01,
+                entcoeff: "step: 0.1@0 0.0@100",
                 value_loss_coeff: 2,
             )
         )
@@ -74,13 +74,13 @@ def test_checkpoint():
         checkpoint_dir = tmpdir + "/checkpoint"
         os.mkdir(checkpoint_dir)
         hs = HS(tmpdir + "/config.ron", checkpoint_dir)
-        hs.state.step = 10
+        hs.state.step = 50
         hs.state.params.params += 0.1
         hs.step()
 
         # Restore from checkpoint
         hs2 = HS(tmpdir + "/config.ron", checkpoint_dir)
-        assert hs2.state.step == 10
+        assert hs2.state.step == 50
         assert (hs2.state.params.params == hs.state.params.params).all()
         assert hs2.config == Config(
             lr=0.01,
@@ -89,8 +89,7 @@ def test_checkpoint():
                 cliprange=0.3,
                 gamma=0.999,
                 lambd=0.95,
-                entcoeff=0.01,
+                entcoeff=0.05,
                 value_loss_coeff=2,
             ),
         )
-
