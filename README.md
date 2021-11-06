@@ -113,7 +113,7 @@ class Config(Versioned):
 ```
 
 In the majority of cases, you don't actually have to manually write out `RewriteRule`s.
-Instead, they are generated for you automatically by the [Schema Evolution CLI](schema-evolution-cli).
+Instead, they are generated for you automatically by the [Schema Evolution CLI](#schema-evolution-cli).
 
 ### Schema evolution CLI
 
@@ -165,7 +165,7 @@ The `upgrade-config` command takes a list of paths to config files, and upgrades
 
 ### Automated Tests
 
-To prevent accidental backwards-incompatible modifications of your `Config` class, you can use the following code as an automated test that checks your config `Class` against a schema file created with [`dump-schema`](dump-schema): 
+To prevent accidental backwards-incompatible modifications of your `Config` class, you can use the following code as an automated test that checks your config `Class` against a schema file created with [`dump-schema`](#dump-schema): 
 
 ```python
 from hyperstate.schema.schema_change import Severity
