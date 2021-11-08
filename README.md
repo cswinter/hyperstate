@@ -4,8 +4,8 @@
 Opinionated library for managing hyperparameter configs and mutable program state of machine learning training systems.
 
 **Key Features**:
-- (De)serialize nested Python dataclasses as [RON files](https://github.com/ron-rs/ron)
-- Override any config value from the command line 
+- (De)serialize nested Python dataclasses as [Rusty Object Notation](https://github.com/ron-rs/ron)
+- Override any config value from the command line
 - Automatic checkpointing and restoration of full program state
 - Checkpoints are (partially) human readable and can be modified in a text editor
 - Powerful tools for versioning and schema evolution that can detect breaking changes and make it easy to restructure your program while remaining backwards compatible with old checkpoints
@@ -181,7 +181,47 @@ def test_schema():
     assert checker.severity() == Severity.INFO
 ```
 
-## State
+## `Serializable`
+
+
+Which must be composed of Python primitive types, `Dict`s, `List`s, numpy arrays and PyTorch tensors.
+
+```python
+from dataclass import @dataclass
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import hyperstate
+
+class LinearRegression(nn.Module, hyperstate.Serializable):
+    def __init__(self):
+        super(Net, self).__init__()
+        self.fc1 = nn.Linear(500, 1)
+        
+    def forward(self, x):
+        return self.fc1(x)
+    
+    def serialize(self) -> Any:
+        return self.state_dict()
+
+    @classmethod
+    def deserialize(clz, state_dict, extra_ctx):
+        net = clz()
+        return net.load_state_dict(state_dict)
+
+
+@dataclass
+class State:
+    net: LinearRegression
+```
+
+- interface
+- ctx
+
+## `Lazy`
+
+## `HyperState`
 
 State objects must also be `@dataclass`es, and can additonally include opaque `hyperstate.Blob[T]` types with custom (de)serialization logic.
 Both `Config` and `State` are managed by a `HyperState[Config, State]` object with `config` and `state` fields.
@@ -210,8 +250,6 @@ def load(
     """
     pass
 ```
-
-## Serializable
 
 ### Checkpointing 
 
