@@ -205,12 +205,14 @@ class LinearRegression(nn.Module, hyperstate.Serializable):
     def forward(self, x):
         return self.fc1(x)
     
-    # `serialize` should return a representation of the object consisting only of primitives, containers, numpy arrays and torch tensors.
+    # `serialize` should return a representation of the object consisting only of
+    # primitives, containers, numpy arrays and torch tensors.
     def serialize(self) -> Any:
         return self.state_dict()
 
-    # `deserialize` should take a serialized representation of the object and return an instance of the class.
-    # The `ctx` argument allows you to pass additional information to the deserialization function.
+    # `deserialize` should take a serialized representation of the object and
+    # return an instance of the class. The `ctx` argument allows you to pass
+    # additional information to the deserialization function.
     @classmethod
     def deserialize(clz, state_dict, ctx):
         net = clz(ctx["config"].inputs)
