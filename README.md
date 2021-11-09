@@ -4,8 +4,8 @@
 Opinionated library for managing hyperparameter configs and mutable program state of machine learning training systems.
 
 **Key Features**:
-- (De)serialize nested Python dataclasses as [RON files](https://github.com/ron-rs/ron)
-- Override any config value from the command line 
+- (De)serialize nested Python dataclasses as [Rusty Object Notation](https://github.com/ron-rs/ron)
+- Override any config value from the command line
 - Automatic checkpointing and restoration of full program state
 - Checkpoints are (partially) human readable and can be modified in a text editor
 - Powerful tools for versioning and schema evolution that can detect breaking changes and make it easy to restructure your program while remaining backwards compatible with old checkpoints
@@ -181,37 +181,65 @@ def test_schema():
     assert checker.severity() == Severity.INFO
 ```
 
-## State
+## `Serializable`
 
-State objects must also be `@dataclass`es, and can additonally include opaque `hyperstate.Blob[T]` types with custom (de)serialization logic.
-Both `Config` and `State` are managed by a `HyperState[Config, State]` object with `config` and `state` fields.
-The `HyperState` object is created/loaded with `HyperState.load`:
+You can define custom serialization logic for a class by inheriting from `hyperstate.Serializable` and implementing the `serialize` and `deserialize` methods.
 
 ```python
-def load(
-    config_clz: Type[C],
-    state_clz: Type[S],
-    initial_state: Callable[[C], S],
-    path: str,
-    checkpoint_dir: Optional[str] = None,
-    checkpoint_key: Optional[str] = None,
-    overrides: Optional[List[str]] = None,
-) -> "HyperState[C, S]":
-    """
-    Loads a HyperState from a checkpoint (if exists) or initializes a new one.
+from dataclass import @dataclass
 
-    :param config_clz: The type of the config object.
-    :param state_clz: The type of the state object.
-    :param initial_state: A function that takes a config object and returns an initial state object.
-    :param path: The path to the config file or full checkpoint directory.
-    :param checkpoint_dir: The directory to store checkpoints.
-    :param checkpoint_key: The key to use for the checkpoint. This must be a field of the state object (e.g. a field holding current iteration).
-    :param overrides: A list of overrides to apply to the config. (Example: ["optimizer.lr=0.1"])
-    """
-    pass
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import hyperstate
+
+@dataclass
+class Config:
+   inputs: int
+
+class LinearRegression(nn.Module, hyperstate.Serializable):
+    def __init__(self, inputs):
+        super(Net, self).__init__()
+        self.fc1 = nn.Linear(inputs, 1)
+        
+    def forward(self, x):
+        return self.fc1(x)
+    
+    # `serialize` should return a representation of the object consisting only of primitives, containers, numpy arrays and torch tensors.
+    def serialize(self) -> Any:
+        return self.state_dict()
+
+    # `deserialize` should take a serialized representation of the object and return an instance of the class.
+    # The `ctx` argument allows you to pass additional information to the deserialization function.
+    @classmethod
+    def deserialize(clz, state_dict, ctx):
+        net = clz(ctx["config"].inputs)
+        return net.load_state_dict(state_dict)
+
+@dataclass
+class State:
+    net: LinearRegression
+
+config = hyperstate.load("config.ron")
+state = hyperstate.load("state.ron", ctx={"config": config})
 ```
 
-## Serializable
+Objects that implement `Serializable` are stored in separate files using a binary encoding.
+In the above example, calling `hyperstate.dump(state, "checkpoint/state.ron")` will result in the following file structure:
+
+```
+checkpoint
+├── state.net.blob
+└── state.ron
+```
+
+## `Lazy`
+
+If you inherit from `hyperstate.Lazy`, any fields with `Serializable` types will only be loaded/deserialized when accessed. If the `.blob` file for a field is missing, HyperState will not raise an error unless the corresponding field is accessed.
+
+## `HyperState`
+
+...
 
 ### Checkpointing 
 
