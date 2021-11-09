@@ -184,8 +184,6 @@ def test_schema():
 ## `Serializable`
 
 
-Which must be composed of Python primitive types, `Dict`s, `List`s, numpy arrays and PyTorch tensors.
-
 ```python
 from dataclass import @dataclass
 
@@ -194,26 +192,35 @@ import torch.nn as nn
 import torch.nn.functional as F
 import hyperstate
 
+@dataclass
+class Config:
+   inputs: int
+
+# To define custom serialization logic for a class, inherit from `hyperstate.Serializable` and implementing `serialize` and `deserialize`.
 class LinearRegression(nn.Module, hyperstate.Serializable):
-    def __init__(self):
+    def __init__(self, inputs):
         super(Net, self).__init__()
-        self.fc1 = nn.Linear(500, 1)
+        self.fc1 = nn.Linear(inputs, 1)
         
     def forward(self, x):
         return self.fc1(x)
     
+    # `serialize` should return an object composed only of dicts, lists, primitive types, numpy arrays and PyTorch tensors
     def serialize(self) -> Any:
         return self.state_dict()
 
     @classmethod
-    def deserialize(clz, state_dict, extra_ctx):
-        net = clz()
+    def deserialize(clz, state_dict, ctx):
+        net = clz(ctx["config"].inputs)
         return net.load_state_dict(state_dict)
 
 
 @dataclass
 class State:
     net: LinearRegression
+
+config = hyperstate.load("config.ron")
+state = hyperstate.load("state.ron", ctx={"config": config})
 ```
 
 - interface
