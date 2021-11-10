@@ -234,7 +234,10 @@ class OverridesDeserializer(Deserializer):
             return None, False, False
         for override in self.overrides:
             key, str_val = override.split("=")
-            val = pyron.load(str_val)
+            try:
+                val = pyron.load(str_val)
+            except ValueError:
+                val = str_val
             fpath = key.split(".")
             _value = value
             for segment in fpath[:-1]:
