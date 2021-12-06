@@ -59,7 +59,7 @@ class Config:
     steps: int
 
 overrides = ["optimizer.lr=0.1", "steps=100"]
-config: Config = hyperstate.load(Config, "config.yaml", overrides=overrides)
+config: Config = hyperstate.load(Config, "config.ron", overrides=overrides)
 ```
 
 ## Versioning
@@ -186,7 +186,7 @@ def test_schema():
 You can define custom serialization logic for a class by inheriting from `hyperstate.Serializable` and implementing the `serialize` and `deserialize` methods.
 
 ```python
-from dataclass import @dataclass
+from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
@@ -235,32 +235,123 @@ checkpoint
 └── state.ron
 ```
 
-## `Lazy`
+### `Lazy`
 
 If you inherit from `hyperstate.Lazy`, any fields with `Serializable` types will only be loaded/deserialized when accessed. If the `.blob` file for a field is missing, HyperState will not raise an error unless the corresponding field is accessed.
 
+### `blob`
+
+To include objects in your state that do not directly implement `hyperstate.Serializable`, you can seperately implement `hyperstate.Serializable` and use the `blob` function to mix in the `Serializable` implementation:
+
+```python
+import torch.optim as optim
+import torch.nn as nn
+import hyperstate
+
+class SerializableOptimizer(hyperstate.Serializable):
+    def serialize(self):
+        return self.state_dict()
+
+    @classmethod
+    def deserialize(clz, state_dict: Any, config: Config, state: "State") -> optim.Optimizer:
+        optimizer = blob(optim.SerializableAdam, mixin=SerializableOptimizer)(state.net.parameters())
+        optimizer.load_state_dict(state_dict)
+        return optimizer
+
+@dataclass
+class State(hyperstate.Lazy):
+    net: nn.Module
+    optimizer: blob(Adam, mixin=SerializableOptimizer)
+```
+
+
+
 ## `HyperState`
 
-...
+To unlock the full power of HyperState, you must inherit from the `HyperState` class.
+This class combines an immutable config and mutable state, and provides automatic checkpointing, hyperparameter schedules, and the on-the-fly changes to the config and state (not implemented yet).
 
-### Checkpointing 
+```python
+from dataclasses import dataclass
 
-Just call `step` on the `HyperState` object to checkpoint the current config/state to the configured directory.
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import hyperstate
+
+@dataclass
+class Config:
+   inputs: int
+   steps: int
+
+class LinearRegression(nn.Module, hyperstate.Serializable):
+    def __init__(self, inputs):
+        super(Net, self).__init__()
+        self.fc1 = nn.Linear(inputs, 1)
+    def forward(self, x):
+        return self.fc1(x)
+    def serialize(self) -> Any:
+        return self.state_dict()
+    @classmethod
+    def deserialize(clz, state_dict, ctx):
+        net = clz(ctx["config"].inputs)
+        return net.load_state_dict(state_dict)
+
+@dataclass
+class State:
+    net: LinearRegression
+    step: int
+
+
+class Trainer(HyperState[Config, State]):
+    def __init__(
+        self,
+        # Path to the config file
+        initial_config: str,
+        # Optional path to the checkpoint directory, which enables automatic checkpointing.
+        # If any checkpoint files are present, they will be used to initialize the state.
+        checkpoint_dir: Optional[str] = None,
+        # List of manually specified config overrides.
+        config_overrides: Optional[List[str]] = None,
+    ):
+        super().__init__(Config, State, initial_config, checkpoint_dir, overrides=config_overrides)
+
+    def initial_state(self) -> State:
+        """
+        This function is called to initialize the state if no checkpoint files are found.
+        """
+        return State(net=LinearRegression(self.config.inputs))
+
+    def train(self) -> None:
+        for step in range(self.state.step, self.config.steps):
+            # training code...
+
+            self.state.step = step
+            # At the end of each iteration, call `self.step()` to checkpoint the state and apply hyperparameter schedules.
+            self.step()
+```
+
+### Checkpointing
+
+When using the `HyperState` object, the config and state are automatically checkpointed to the configured directory when calling the `step` method.
 
 ### Schedules
 
-All `int`/`float` fields in the config can also be set to a schedule that will be updated at each step.
+Any `int`/`float` fields in the config can also be set to a schedule that will be updated at each step.
+For example, the following config defines a schedule that linearly decays the learning rate from 1.0 to 0.1 over 1000 steps:
 
-### Limitations
+```rust
+Config(
+    lr: Schedule(
+      key: "state.step",
+      schedule: [
+        (0, 1.0),
+        "lin",
+        (1000, 0.1),
+      ],
+    ),
+    batch_size: 256,
+)
+```
 
-Currently, can't easily use `HyperState` with `PyTorch`.
-Problem: To initialize optimizer class, needs to have parameter state as well as config.
-Therefore, `HyperState` currently only stores the optimizer state and policy state which has to be manually updated each step.
-
-Sketch of solution:
-- the `State` dataclasses have to inherit/add property which intercepts fields accesses and gives transparent lazy loading
-- therefore, we can partially initialize the state object and pass `State` to all init calls as well
-- as long as there are no loops, initializer can access any other (fully initialized) state objects
-- this allows us to support any types that implement a some hyperstate serialization interface (load(config, state, state_dict) -> self, get_state_dict() -> state_dict)
-
-Limitation 2: Syncing state in distributed training.
+When you call `step()`, all config values that are schedules will be updated.
