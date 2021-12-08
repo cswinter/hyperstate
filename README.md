@@ -73,13 +73,13 @@ $ python main.py --config=config.ron
 Config(optimizer=OptimizerConfig(lr=0.05, batch_size=4096), net=NetConfig(hidden_size=128, num_layers=2), steps=100)
 ```
 
-The full code for this example can be found in [examples/basic-config]().
+The full code for this example can be found in [examples/basic-config](examples/basic-config).
 
 Learn more about:
 - [Configs](#configs)
 - [Versioning and schema evolution](#versioning)
-- [Serializing complex objects](#serializable)
-- [Checkpointing and schedules](#hyperstate-1)
+- [Serializing complex objects](#unstable-feature-serializable)
+- [Checkpointing and schedules](#unstable-feature-hyperstate)
 - [Example application](examples/mnist)
 
 ## Configs
