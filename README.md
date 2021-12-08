@@ -16,7 +16,7 @@ Opinionated library for managing hyperparameter configs and mutable program stat
 
 ## Quick start guide
 
-All you need to do to use HyperState is to create a (nested) dataclass for your hyperparameters:
+All you need to use HyperState is a (nested) dataclass for your hyperparameters:
 
 ```python
 from dataclasses import dataclass
