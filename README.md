@@ -14,6 +14,74 @@ Opinionated library for managing hyperparameter configs and mutable program stat
 - (planned) Edit hyperparameters of running experiments on the fly without restarts
 - (planned) Usable without fermented vegetables
 
+## Quick start guide
+
+All you need to do to use HyperState is to create a (nested) dataclass for your hyperparameters:
+
+```python
+from dataclasses import dataclass
+
+
+@dataclass
+class OptimizerConfig:
+    lr: float = 0.003
+    batch_size: int = 512
+
+
+@dataclass
+class NetConfig:
+    hidden_size: int = 128
+    num_layers: int = 2
+
+
+@dataclass
+class Config:
+    optimizer: OptimizerConfig
+    net: NetConfig
+    steps: int = 100
+```
+
+The `hyperstate.load` function can load values from a config file and/or apply specific overrides from the command line.
+
+```python
+import argparse
+import hyperstate
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", type=str, default=None, help="Path to config file")
+    parser.add_argument("--hps", nargs="+", help="Override hyperparameter value")
+    args = parser.parse_args()
+    config = hyperstate.load(Config, path=args.config, overrides=args.hps)
+    print(config)
+```
+
+```shell
+$ python main.py --hps net.num_layers=96 steps=50
+Config(optimizer=OptimizerConfig(lr=0.003, batch_size=512), net=NetConfig(hidden_size=128, num_layers=96), steps=50)
+```
+
+```shell
+$ cat config.ron
+Config(
+    optimizer: (
+        lr: 0.05,
+        batch_size: 4096,
+    ),
+)
+$ python main.py --config=config.ron
+Config(optimizer=OptimizerConfig(lr=0.05, batch_size=4096), net=NetConfig(hidden_size=128, num_layers=2), steps=100)
+```
+
+The full code for this example can be found in [examples/basic-config]().
+
+Learn more about:
+- [Configs](#configs)
+- [Versioning and schema evolution](#versioning)
+- [Serializing complex objects](#serializable)
+- [Checkpointing and schedules](#hyperstate-1)
+- [Example application](examples/mnist)
+
 ## Configs
 
 HyperState supports a strictly typed subset of Python objects:
@@ -34,18 +102,7 @@ Config(
 ```
 
 Use `hyperstate.load` to deserialize configs.
-The `load` method requires two arguments, the type/class of the config and a path to a config file:
-
-```python
-@dataclass
-class Config:
-    lr: float
-    batch_size: int
-
-config: Config = hyperstate.load(Config, "config.ron")
-```
-
-The `load` method also accepts an optional list of `overrides` that can be used to set the value of any config field:
+The `load` method takes the type of the config as the first argugment, and allows you to optionally specify the path to a config file and/or a `List[str]` of overrides:
 
 ```python
 @dataclass
@@ -58,8 +115,8 @@ class Config:
     optimzer: OptimizerConfig
     steps: int
 
-overrides = ["optimizer.lr=0.1", "steps=100"]
-config: Config = hyperstate.load(Config, "config.ron", overrides=overrides)
+
+config = hyperstate.load(Config, path="config.ron", overrides=["optimizer.lr=0.1", "steps=100"])
 ```
 
 ## Versioning
@@ -181,7 +238,7 @@ def test_schema():
     assert checker.severity() == Severity.INFO
 ```
 
-## `Serializable`
+## _[unstable feature]_ `Serializable`
 
 You can define custom serialization logic for a class by inheriting from `hyperstate.Serializable` and implementing the `serialize` and `deserialize` methods.
 
@@ -235,11 +292,11 @@ checkpoint
 └── state.ron
 ```
 
-### `Lazy`
+### _[unstable feature]_ `Lazy`
 
 If you inherit from `hyperstate.Lazy`, any fields with `Serializable` types will only be loaded/deserialized when accessed. If the `.blob` file for a field is missing, HyperState will not raise an error unless the corresponding field is accessed.
 
-### `blob`
+### _[unstable feature]_`blob`
 
 To include objects in your state that do not directly implement `hyperstate.Serializable`, you can seperately implement `hyperstate.Serializable` and use the `blob` function to mix in the `Serializable` implementation:
 
@@ -266,7 +323,7 @@ class State(hyperstate.Lazy):
 
 
 
-## `HyperState`
+## _[unstable feature]_ `HyperState`
 
 To unlock the full power of HyperState, you must inherit from the `HyperState` class.
 This class combines an immutable config and mutable state, and provides automatic checkpointing, hyperparameter schedules, and the on-the-fly changes to the config and state (not implemented yet).
@@ -331,11 +388,11 @@ class Trainer(HyperState[Config, State]):
             self.step()
 ```
 
-### Checkpointing
+### _[unstable feature]_ Checkpointing
 
 When using the `HyperState` object, the config and state are automatically checkpointed to the configured directory when calling the `step` method.
 
-### Schedules
+### _[unstable feature]_ Schedules
 
 Any `int`/`float` fields in the config can also be set to a schedule that will be updated at each step.
 For example, the following config defines a schedule that linearly decays the learning rate from 1.0 to 0.1 over 1000 steps:

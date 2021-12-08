@@ -25,9 +25,8 @@ from hyperstate.serde import (
     Deserializer,
     Serializer,
     asdict,
-    dump,
-    load,
 )
+import hyperstate.serde as serde
 from .lazy import LazyDeserializer, LazySerializer
 
 import pyron
@@ -158,7 +157,7 @@ def _typed_dump(
         serializers.append(ScheduleSerializer(schedules))
     if elide_defaults:
         serializers.append(ElideDefaults())
-    result = dump(obj, path, serializers=serializers)
+    result = serde.dump(obj, path, serializers=serializers)
     if path is not None:
         for blobpath, blob in lazy_serializer.blobs.items():
             with open(path.parent / blobpath, "wb") as f:
@@ -166,15 +165,20 @@ def _typed_dump(
     return result
 
 
-def typed_dump(
+def dump(
     obj, path: Optional[Path] = None, elide_defaults: bool = False
 ) -> Union[None, str]:
     return _typed_dump(obj, path, elide_defaults=elide_defaults)
 
+def dumps(
+    obj, elide_defaults: bool = False
+) -> str:
+    return dump(obj, elide_defaults=elide_defaults)
+
 
 def _typed_load(
     clz: Type[T],
-    source: Union[str, Path],
+    source: Union[str, Path, None],
     overrides: Optional[List[str]] = None,
     config: Optional[Any] = None,
     allow_missing_version: bool = False,
@@ -190,18 +194,30 @@ def _typed_load(
     if isinstance(source, Path):
         lazy = LazyDeserializer(config, source.absolute().parent)
         deserializers.append(lazy)
-    value = load(clz, source, deserializers=deserializers)
+    elif source is None:
+        source = "{}"
+    value = serde.load(clz, source, deserializers=deserializers)
     if lazy is not None and len(lazy.lazy_fields) > 0:
         value._unloaded_lazy_fields = lazy.lazy_fields
     return value, schedules.schedules
 
 
-def typed_load(
+def loads(
     clz: Type[T],
-    source: Union[str, Path],
+    value: str,
     overrides: Optional[List[str]] = None,
 ) -> T:
-    return _typed_load(clz, source, overrides)[0]
+    return _typed_load(clz, value, overrides)[0]
+
+
+def load(
+    clz: Type[T],
+    path: Union[str, Path, None],
+    overrides: Optional[List[str]] = None,
+) -> T:
+    if isinstance(path, str):
+        path = Path(path)
+    return _typed_load(clz, path, overrides)[0]
 
 
 def find_latest_checkpoint(dir: Path) -> Optional[Path]:

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import enum
 from typing import Any, Dict, List, Optional
 import tempfile
-from hyperstate.hyperstate import typed_dump, typed_load
+from hyperstate.hyperstate import dump, loads
 from hyperstate.schema.rewrite_rule import (
     AddDefault,
     ChangeDefault,
@@ -104,20 +104,43 @@ def test_config_v1_to_v2():
     check_schema(
         ConfigV1,
         ConfigV2Error,
-        [FieldAdded(("optimizer",), type=Primitive(type="str"),)],
+        [
+            FieldAdded(
+                ("optimizer",),
+                type=Primitive(type="str"),
+            )
+        ],
         [],
         Severity.ERROR,
     )
     automatic_upgrade(
-        ConfigV1(steps=1, learning_rate=0.1, batch_size=32, epochs=10,),
+        ConfigV1(
+            steps=1,
+            learning_rate=0.1,
+            batch_size=32,
+            epochs=10,
+        ),
         ConfigV2Warn(
-            steps=1, learning_rate=0.1, batch_size=32, epochs=10, optimizer=None,
+            steps=1,
+            learning_rate=0.1,
+            batch_size=32,
+            epochs=10,
+            optimizer=None,
         ),
     )
     automatic_upgrade(
-        ConfigV1(steps=1, learning_rate=0.1, batch_size=32, epochs=10,),
+        ConfigV1(
+            steps=1,
+            learning_rate=0.1,
+            batch_size=32,
+            epochs=10,
+        ),
         ConfigV2Info(
-            steps=1, learning_rate=0.1, batch_size=32, epochs=10, optimizer="sgd",
+            steps=1,
+            learning_rate=0.1,
+            batch_size=32,
+            epochs=10,
+            optimizer="sgd",
         ),
     )
 
@@ -159,8 +182,19 @@ def test_config_v2_to_v3():
         Severity.WARN,
     )
     automatic_upgrade(
-        ConfigV2Info(steps=1, learning_rate=0.1, batch_size=32, epochs=10,),
-        ConfigV3(steps=1, lr=0.1, batch_size=32, epochs=10, optimizer="sgd",),
+        ConfigV2Info(
+            steps=1,
+            learning_rate=0.1,
+            batch_size=32,
+            epochs=10,
+        ),
+        ConfigV3(
+            steps=1,
+            lr=0.1,
+            batch_size=32,
+            epochs=10,
+            optimizer="sgd",
+        ),
     )
 
 
@@ -233,7 +267,13 @@ def test_config_v3_to_v4():
         Severity.WARN,
     )
     automatic_upgrade(
-        ConfigV3(steps=1, lr=0.1, batch_size=32, epochs=10, optimizer="sgd",),
+        ConfigV3(
+            steps=1,
+            lr=0.1,
+            batch_size=32,
+            epochs=10,
+            optimizer="sgd",
+        ),
         ConfigV4(
             steps=1,
             epochs=10,
@@ -404,15 +444,17 @@ def test_config_v5_to_v6():
                 variant_value="StarPilot",
             ),
         ],
-        [AddDefault(field=("steps",), default=10),],
+        [
+            AddDefault(field=("steps",), default=10),
+        ],
         Severity.ERROR,
     )
 
 
 def test_serde_upgrade():
     config_v2 = ConfigV2Info(steps=1, learning_rate=0.1, batch_size=32, epochs=10)
-    serialized = typed_dump(config_v2)
-    config_v3 = typed_load(ConfigV3, serialized)
+    serialized = dump(config_v2)
+    config_v3 = loads(ConfigV3, serialized)
     assert config_v3 == ConfigV3(
         steps=1, lr=0.1, batch_size=32, epochs=10, optimizer="sgd"
     )
@@ -438,7 +480,11 @@ def check_schema(
 
 def erase_lambdas(rule: RewriteRule):
     if isinstance(rule, MapFieldValue):
-        return MapFieldValue(field=rule.field, map_fn=None, rendered=rule.rendered,)
+        return MapFieldValue(
+            field=rule.field,
+            map_fn=None,
+            rendered=rule.rendered,
+        )
     return rule
 
 
@@ -455,7 +501,6 @@ def automatic_upgrade(old: Any, new: Any):
                 old.version(): autofixes,
             }
 
-    serialized = typed_dump(old)
-    new_with_upgrade_rules = typed_load(NewWithUpgradeRules, serialized)
+    serialized = dump(old)
+    new_with_upgrade_rules = loads(NewWithUpgradeRules, serialized)
     assert new_with_upgrade_rules == NewWithUpgradeRules(**new.__dict__)
-
