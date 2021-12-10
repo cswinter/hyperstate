@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "hyperstate"
+version = "0.1.0"
+description = "Library for managing hyperparameters and mutable program state."
+authors = ["Clemens Winter <clemenswinter1@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+python-ron = "^0.1.6"
+click = "^8.0.3"
+msgpack = "^1.0.3"
+msgpack-numpy = "^0.4.7"
+dill = "^0.3.4"
+
+[tool.poetry.dev-dependencies]
+black = "^21.12b0"
+mypy = "^0.910"
+pytest = "^6.2.5"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
