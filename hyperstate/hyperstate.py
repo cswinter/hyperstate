@@ -170,9 +170,8 @@ def dump(
 ) -> Union[None, str]:
     return _typed_dump(obj, path, elide_defaults=elide_defaults)
 
-def dumps(
-    obj, elide_defaults: bool = False
-) -> str:
+
+def dumps(obj, elide_defaults: bool = False) -> str:
     return dump(obj, elide_defaults=elide_defaults)
 
 
@@ -246,12 +245,14 @@ class OverridesDeserializer(Deserializer):
         value: Any,
         path: str,
     ) -> Tuple[T, bool, bool]:
+        print(f"overrides: {self.overrides}")
         if self.applied_overrides:
             return None, False, False
         for override in self.overrides:
             key, str_val = override.split("=")
             try:
-                val = pyron.load(str_val)
+                val = pyron.loads(str_val, preserve_structs=True)
+                print(f"override: {key} = {val}, {str_val}")
             except ValueError:
                 val = str_val
             fpath = key.split(".")

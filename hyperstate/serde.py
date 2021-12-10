@@ -118,6 +118,8 @@ def from_dict(
         return _value
     if inspect.isclass(clz) and isinstance(value, clz):
         return value
+    elif clz == str and isnamedtupleinstance(value) and len(value._fields) == 0:
+        return value.__class__.__name__
     elif clz == float and isinstance(value, int):
         return int(value)
     elif clz == int and isinstance(value, float) and int(value) == value:
@@ -200,10 +202,9 @@ def load(
     if deserializers is None:
         deserializers = []
     if isinstance(source, str):
-        state_dict = pyron.load(source)
+        state_dict = pyron.loads(source)
     elif isinstance(source, Path):
-        with open(source, "r") as f:
-            state_dict = pyron.load(f.read())
+        state_dict = pyron.load(str(source))
     else:
         raise ValueError(f"source must be a `str` or `Path`, but found {source}")
     return from_dict(clz, state_dict, deserializers)
