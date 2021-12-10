@@ -245,14 +245,12 @@ class OverridesDeserializer(Deserializer):
         value: Any,
         path: str,
     ) -> Tuple[T, bool, bool]:
-        print(f"overrides: {self.overrides}")
         if self.applied_overrides:
             return None, False, False
         for override in self.overrides:
             key, str_val = override.split("=")
             try:
                 val = pyron.loads(str_val, preserve_structs=True)
-                print(f"override: {key} = {val}, {str_val}")
             except ValueError:
                 val = str_val
             fpath = key.split(".")
