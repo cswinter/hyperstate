@@ -25,8 +25,8 @@ class Serializable(ABC):
     def serialize(self) -> Any:
         pass
 
-    @abstractmethod
     @classmethod
+    @abstractmethod
     def deserialize(clz: Type[T], state_dict: Any, config: Any, state: Any) -> T:
         pass
 

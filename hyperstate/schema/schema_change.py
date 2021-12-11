@@ -162,7 +162,7 @@ class TypeChanged(SchemaChange):
     def diagnostic(self) -> str:
         return f"type changed from {self.old} to {self.new}"
 
-    def proposed_fix(self) -> RewriteRule:
+    def proposed_fix(self) -> typing.Optional[RewriteRule]:
         if isinstance(self.new, t.List) and self.new.inner == self.old:
             return MapFieldValue(self.field, lambda x: [x], rendered="lambda x: [x]")
         elif (
@@ -175,7 +175,7 @@ class TypeChanged(SchemaChange):
                 self.field, lambda x: int(x), rendered="lambda x: int(x)"
             )
         else:
-            raise ValueError(f"Cannot change type from {self.old} to {self.new}")
+            return None
 
 
 @dataclass(eq=True, frozen=True)

@@ -16,8 +16,8 @@ T = TypeVar("T")
 
 @dataclass  # type: ignore
 class Versioned(ABC):
-    @abstractmethod
     @classmethod
+    @abstractmethod
     def version(clz) -> int:
         raise NotImplementedError(f"{clz.__name__}.version() not implemented")
 
