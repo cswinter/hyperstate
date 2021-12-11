@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import tempfile
 import textwrap
 import os
+from typing import Any
 
 import numpy as np
 
@@ -26,14 +27,14 @@ class Config:
 
 
 class Params(Serializable):
-    def __init__(self):
+    def __init__(self) -> None:
         self.params = np.zeros(64)
 
-    def serialize(self):
+    def serialize(self) -> np.ndarray:
         return self.params
 
     @classmethod
-    def deserialize(clz, state_dict, config, state):
+    def deserialize(clz, state_dict: np.ndarray, config: Any, state: Any) -> "Params":
         result = Params()
         result.params = state_dict
         return result
@@ -53,7 +54,7 @@ class HS(HyperState[Config, State]):
         return State(step=0, params=Params())
 
 
-def test_checkpoint():
+def test_checkpoint() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         # Write initial config file
         config = """\

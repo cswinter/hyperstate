@@ -1,4 +1,4 @@
-from typing import Type, TypeVar, Any
+from typing import TypeVar, Any, Union
 from enum import EnumMeta
 import enum
 import typing
@@ -12,12 +12,11 @@ import pyron
 T = TypeVar("T")
 
 
-class Type(ABC):
-    pass
+Type = Union["Primitive", "List", "Struct", "Option", "Enum"]
 
 
 @dataclass(eq=True, frozen=True)
-class Primitive(Type):
+class Primitive:
     type: str
 
     def __repr__(self) -> str:
@@ -25,7 +24,7 @@ class Primitive(Type):
 
 
 @dataclass(eq=True, frozen=True)
-class List(Type):
+class List:
     inner: Type
 
     def __repr__(self) -> str:
@@ -41,14 +40,14 @@ class Field:
 
 
 @dataclass(eq=True, frozen=True)
-class Enum(Type):
+class Enum:
     name: str
     variants: typing.Dict[str, typing.Union[str, int]]
 
 
 # TODO: allow name to differ in equality
 @dataclass(eq=True, frozen=True)
-class Struct(Type):
+class Struct:
     name: str
     fields: typing.Dict[str, Field]
     version: typing.Optional[int] = 0
@@ -96,7 +95,9 @@ def materialize_type(clz: typing.Type[Any]) -> Type:
         from hyperstate.schema.versioned import Versioned
 
         return Struct(
-            clz.__name__, fields, clz.version() if issubclass(clz, Versioned) else None,
+            clz.__name__,
+            fields,
+            clz.version() if issubclass(clz, Versioned) else None,
         )
     elif is_optional(clz):
         return Option(materialize_type(clz.__args__[0]))
@@ -109,10 +110,10 @@ def materialize_type(clz: typing.Type[Any]) -> Type:
         raise ValueError(f"Unsupported type: {clz}")
 
 
-def is_optional(clz):
+def is_optional(clz: Any) -> bool:
     return (
         hasattr(clz, "__origin__")
-        and clz.__origin__ is typing.Union  # type: ignore
+        and clz.__origin__ is typing.Union
         and clz.__args__.__len__() == 2
         and clz.__args__[1] is type(None)
     )

@@ -19,7 +19,7 @@ class Config:
     task_id: str
 
 
-def test_override():
+def test_override() -> None:
     config = hs.load(
         Config,
         path=None,

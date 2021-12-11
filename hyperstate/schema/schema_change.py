@@ -1,10 +1,10 @@
-from typing import Sequence, Type, Any
+from typing import Sequence, Type, Any, cast
 from enum import Enum
 import typing
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from .types import *
+from . import types as t
 from .rewrite_rule import (
     RewriteRule,
     DeleteField,
@@ -22,8 +22,21 @@ class Severity(Enum):
     WARN = 2
     ERROR = 3
 
+    def __ge__(self, other: "Severity") -> bool:
+        return cast(bool, self.value >= other.value)
 
-@dataclass(eq=True, frozen=True)
+    def __gt__(self, other: "Severity") -> bool:
+        return cast(bool, self.value > other.value)
+
+    def __le__(self, other: "Severity") -> bool:
+        return cast(bool, self.value <= other.value)
+
+    def __lt__(self, other: "Severity") -> bool:
+        return cast(bool, self.value < other.value)
+
+
+# https://github.com/python/mypy/issues/5374
+@dataclass(eq=True, frozen=True)  # type: ignore
 class SchemaChange(ABC):
     field: Sequence[str]
 
@@ -60,7 +73,7 @@ class SchemaChange(ABC):
 
 @dataclass(eq=True, frozen=True)
 class FieldAdded(SchemaChange):
-    type: Type
+    type: t.Type
     default: Any = None
     has_default: bool = False
 
@@ -72,9 +85,9 @@ class FieldAdded(SchemaChange):
     def proposed_fix(self) -> typing.Optional[AddDefault]:
         if self.has_default:
             return None
-        elif isinstance(self.type, Option):
+        elif isinstance(self.type, t.Option):
             return AddDefault(self.field, None)
-        elif isinstance(self.type, List):
+        elif isinstance(self.type, t.List):
             return AddDefault(self.field, [])
         return None
 
@@ -84,7 +97,7 @@ class FieldAdded(SchemaChange):
 
 @dataclass(eq=True, frozen=True)
 class FieldRemoved(SchemaChange):
-    type: Type
+    type: t.Type
     default: Any = None
     has_default: bool = False
 
@@ -131,15 +144,15 @@ class DefaultValueRemoved(SchemaChange):
 
 @dataclass(eq=True, frozen=True)
 class TypeChanged(SchemaChange):
-    old: Type
-    new: Type
+    old: t.Type
+    new: t.Type
 
     def severity(self) -> Severity:
-        if isinstance(self.new, Option) and self.new.type == self.old:
+        if isinstance(self.new, t.Option) and self.new.type == self.old:
             return Severity.INFO
         elif (
-            isinstance(self.old, Primitive)
-            and isinstance(self.new, Primitive)
+            isinstance(self.old, t.Primitive)
+            and isinstance(self.new, t.Primitive)
             and self.old.type == "int"
             and self.new.type == "float"
         ):
@@ -150,17 +163,19 @@ class TypeChanged(SchemaChange):
         return f"type changed from {self.old} to {self.new}"
 
     def proposed_fix(self) -> RewriteRule:
-        if isinstance(self.new, List) and self.new.inner == self.old:
+        if isinstance(self.new, t.List) and self.new.inner == self.old:
             return MapFieldValue(self.field, lambda x: [x], rendered="lambda x: [x]")
         elif (
-            isinstance(self.old, Primitive)
-            and isinstance(self.new, Primitive)
+            isinstance(self.old, t.Primitive)
+            and isinstance(self.new, t.Primitive)
             and self.old == "float"
             and self.new == "int"
         ):
             return MapFieldValue(
                 self.field, lambda x: int(x), rendered="lambda x: int(x)"
             )
+        else:
+            raise ValueError(f"Cannot change type from {self.old} to {self.new}")
 
 
 @dataclass(eq=True, frozen=True)

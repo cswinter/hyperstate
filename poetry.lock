@@ -222,7 +222,7 @@ testing = ["argcomplete", "hypothesis (>=3.56)", "mock", "nose", "requests", "xm
 
 [[package]]
 name = "python-ron"
-version = "0.1.6"
+version = "0.1.7"
 description = ""
 category = "main"
 optional = false
@@ -414,22 +414,22 @@ pytest = [
     {file = "pytest-6.2.5.tar.gz", hash = "sha256:131b36680866a76e6781d13f101efb86cf674ebb9762eb70d3082b6f29889e89"},
 ]
 python-ron = [
-    {file = "python_ron-0.1.6-cp310-none-win32.whl", hash = "sha256:a3855924e440bb7020ba74f1220dbdc1c0eef5e1fcc79b731ca395718ebbfff1"},
-    {file = "python_ron-0.1.6-cp310-none-win_amd64.whl", hash = "sha256:f974a38f4b1d57c32f52fe6c22a3b6b296315bccaf3ce14fc3311b4f5edd8e81"},
-    {file = "python_ron-0.1.6-cp36-none-win32.whl", hash = "sha256:5d6a79bc5ebc8fa3a7d6a499475c47af27d0285d64a123f13100894fb013127c"},
-    {file = "python_ron-0.1.6-cp36-none-win_amd64.whl", hash = "sha256:c2d9124fe9ef81c8b4ea60b4233f8c5fc912f41c7fccdcff7bd7d410075d2887"},
-    {file = "python_ron-0.1.6-cp37-cp37m-macosx_10_7_x86_64.whl", hash = "sha256:07558ce0bf7cad6de203d5cadf50ea6b31ffa1999bc19adfad184a284ef213f6"},
-    {file = "python_ron-0.1.6-cp37-cp37m-manylinux_2_24_x86_64.whl", hash = "sha256:1168e75c672f8dfe5dd08bd9407920437a0f8763174746fd24fd64461fe888e2"},
-    {file = "python_ron-0.1.6-cp37-none-win32.whl", hash = "sha256:b25cfe30d1ce71241350b5059083efce12122abc09b750ec2b9ef2dbd14531a3"},
-    {file = "python_ron-0.1.6-cp37-none-win_amd64.whl", hash = "sha256:059a224d6e1d528ec20720eb015daf46b250f30f3e534b29a1df98e837f68c67"},
-    {file = "python_ron-0.1.6-cp38-cp38-macosx_10_7_x86_64.whl", hash = "sha256:8d2dd92c46f5688d407b1d6c94c9b69ea0b8c9025849678cd108d48bb8b22f98"},
-    {file = "python_ron-0.1.6-cp38-cp38-manylinux_2_24_x86_64.whl", hash = "sha256:88b87320abbcf6c46a71e681462ad6de0bbcbf4d83ba4b917a5d7098efabb9f1"},
-    {file = "python_ron-0.1.6-cp38-none-win32.whl", hash = "sha256:becf902778191efa30547848464b1004cae321ead24741caa133c86dfb92e768"},
-    {file = "python_ron-0.1.6-cp38-none-win_amd64.whl", hash = "sha256:59fee776210435526b063aa214ca6c0259d855c5f99700cf05f661e4a684342f"},
-    {file = "python_ron-0.1.6-cp39-cp39-macosx_10_7_x86_64.whl", hash = "sha256:999975a6028118dc9a8ec4831fbd15e013e00cef02bef261a6b33c41a519becb"},
-    {file = "python_ron-0.1.6-cp39-cp39-manylinux_2_24_x86_64.whl", hash = "sha256:163d3cb187d422c16d1c1cdd6ea04960edd848905ce4fbc7baf5310675706200"},
-    {file = "python_ron-0.1.6-cp39-none-win32.whl", hash = "sha256:32779125918c2ce13fb32789ff10d8081bf352c3675202b7c07bb3db51ddce11"},
-    {file = "python_ron-0.1.6-cp39-none-win_amd64.whl", hash = "sha256:ff547be2722c460a41921b00fd2917da8582cae5ce02ed49154d05f663eb6fbc"},
+    {file = "python_ron-0.1.7-cp310-none-win32.whl", hash = "sha256:312b9d1cc711e67aa923a5dc4452e6c0009ce36161b0472f1214f94ba0efc58d"},
+    {file = "python_ron-0.1.7-cp310-none-win_amd64.whl", hash = "sha256:b27b89780fa7c8fca6a9e446b514514f6f2850e3593b9fd83b79fda388100274"},
+    {file = "python_ron-0.1.7-cp36-none-win32.whl", hash = "sha256:a0a312c411881730e0f53bc8734c485d3a27e7884afba041c14d32fa74743d63"},
+    {file = "python_ron-0.1.7-cp36-none-win_amd64.whl", hash = "sha256:f52bb6cc308949942866b5f0e7b22bc033715707e51cc2f063f1fc1870b7f37f"},
+    {file = "python_ron-0.1.7-cp37-cp37m-macosx_10_7_x86_64.whl", hash = "sha256:0ce111e5597cd82fa2e15cec1cde90814938a3f9e63da90f8a2a8c17a6da2540"},
+    {file = "python_ron-0.1.7-cp37-cp37m-manylinux_2_24_x86_64.whl", hash = "sha256:35af5e4daa32f6c62ab752680eef3c1f5d47feb48e6ed6d451e097e6acb646df"},
+    {file = "python_ron-0.1.7-cp37-none-win32.whl", hash = "sha256:9aa0c2c6405c9cac785d9e3f74b9c343011d9875c10ff3110c28068ecd9fa668"},
+    {file = "python_ron-0.1.7-cp37-none-win_amd64.whl", hash = "sha256:83a94d87290ac8be44ecc8ad48d054ee3398e3ecaebecadcc052a7ba0d305c2e"},
+    {file = "python_ron-0.1.7-cp38-cp38-macosx_10_7_x86_64.whl", hash = "sha256:848606db5133d0de47d028daa04d677a2d3c0c1c876606cbed51c822af5c6567"},
+    {file = "python_ron-0.1.7-cp38-cp38-manylinux_2_24_x86_64.whl", hash = "sha256:f1b95583eccede9c528f610f1693201715d070cb149317b132c5e44aff2f2536"},
+    {file = "python_ron-0.1.7-cp38-none-win32.whl", hash = "sha256:78990f0db8166fef654420d83509ff4568d2e635bdf466d9c244852dad8dc83d"},
+    {file = "python_ron-0.1.7-cp38-none-win_amd64.whl", hash = "sha256:5526317a6e6edb4cfe3e925825c119e514647b2d12b7fed84b312afc03eeaf05"},
+    {file = "python_ron-0.1.7-cp39-cp39-macosx_10_7_x86_64.whl", hash = "sha256:d522cee295a27fa8dda17185b8a3ebde991d4821d851d1fdde1c68982d6a10c3"},
+    {file = "python_ron-0.1.7-cp39-cp39-manylinux_2_24_x86_64.whl", hash = "sha256:37ca858b247ac6665acc280ff09e2dcc264ee8c3a67a7e4429f1fde06c63ee96"},
+    {file = "python_ron-0.1.7-cp39-none-win32.whl", hash = "sha256:390ad81b889627666bd220ba1282b9edc56b8a1ad9f69969f236320a440b4000"},
+    {file = "python_ron-0.1.7-cp39-none-win_amd64.whl", hash = "sha256:f18163ee15f7f5638fbf91d4c463dd0af2733c283b205d2bbb39c933cd0c448e"},
 ]
 toml = [
     {file = "toml-0.10.2-py2.py3-none-any.whl", hash = "sha256:806143ae5bfb6a3c6e736a764057db0e6a0e05e338b5630894a5f779cabb4f9b"},

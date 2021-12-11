@@ -29,7 +29,14 @@ from hyperstate.schema.schema_checker import (
     SchemaChecker,
     Severity,
 )
-from hyperstate.schema.types import Enum, materialize_type, Type, Primitive, Option
+from hyperstate.schema.types import (
+    Enum,
+    Struct,
+    materialize_type,
+    Type,
+    Primitive,
+    Option,
+)
 from hyperstate.schema.versioned import Versioned
 
 
@@ -72,7 +79,7 @@ class ConfigV2Info(ConfigV1):
         return 2
 
 
-def test_config_v1_to_v2():
+def test_config_v1_to_v2() -> None:
     check_schema(
         ConfigV1,
         ConfigV2Info,
@@ -167,7 +174,7 @@ class ConfigV3(Versioned):
         }
 
 
-def test_config_v2_to_v3():
+def test_config_v2_to_v3() -> None:
     check_schema(
         ConfigV2Info,
         ConfigV3,
@@ -229,7 +236,7 @@ class ConfigV4(Versioned):
         return 4
 
 
-def test_config_v3_to_v4():
+def test_config_v3_to_v4() -> None:
     check_schema(
         ConfigV3,
         ConfigV4,
@@ -283,7 +290,7 @@ def test_config_v3_to_v4():
     )
 
 
-def test_config_v4_to_v3():
+def test_config_v4_to_v3() -> None:
     check_schema(
         ConfigV4,
         ConfigV3,
@@ -349,7 +356,7 @@ class ConfigV5(Versioned):
         return 5
 
 
-def test_config_v4_to_v5():
+def test_config_v4_to_v5() -> None:
     check_schema(
         ConfigV4,
         ConfigV5,
@@ -383,7 +390,7 @@ def test_config_v4_to_v5():
         [
             MapFieldValue(
                 field=("task", "task_type"),
-                map_fn=None,
+                map_fn=None,  # type: ignore
                 rendered="lambda x: x if x != 'MAZE' else 'Maze'",
             ),
         ],
@@ -413,7 +420,7 @@ class TaskTypeV6(enum.Enum):
 
 @dataclass
 class TaskConfigV6:
-    task_type: TaskTypeV6 = ChangedTaskType.CR
+    task_type: TaskTypeV6 = TaskTypeV6.CR
     difficulty: int = 1
 
 
@@ -429,7 +436,7 @@ class ConfigV6(Versioned):
         return 6
 
 
-def test_config_v5_to_v6():
+def test_config_v5_to_v6() -> None:
     check_schema(
         ConfigV5,
         ConfigV6,
@@ -451,7 +458,7 @@ def test_config_v5_to_v6():
     )
 
 
-def test_serde_upgrade():
+def test_serde_upgrade() -> None:
     config_v2 = ConfigV2Info(steps=1, learning_rate=0.1, batch_size=32, epochs=10)
     serialized = dump(config_v2)
     config_v3 = loads(ConfigV3, serialized)
@@ -461,15 +468,17 @@ def test_serde_upgrade():
 
 
 def check_schema(
-    old: Type,
-    new: Type,
+    old: Any,
+    new: Any,
     expected_changes: List[SchemaChange],
     expected_fixes: List[RewriteRule],
     expected_severity: Severity = Severity.ERROR,
     print_report: bool = False,
-):
+) -> None:
     with tempfile.TemporaryFile() as f:
-        checker = SchemaChecker(materialize_type(old), new, perform_upgrade=False)
+        old_type = materialize_type(old)
+        assert isinstance(old_type, Struct)
+        checker = SchemaChecker(old_type, new, perform_upgrade=False)
         if print_report:
             checker.print_report()
         checker.proposed_fixes = [erase_lambdas(fix) for fix in checker.proposed_fixes]
@@ -478,23 +487,25 @@ def check_schema(
         assert checker.severity() == expected_severity
 
 
-def erase_lambdas(rule: RewriteRule):
+def erase_lambdas(rule: RewriteRule) -> RewriteRule:
     if isinstance(rule, MapFieldValue):
         return MapFieldValue(
             field=rule.field,
-            map_fn=None,
+            map_fn=None,  # type: ignore
             rendered=rule.rendered,
         )
     return rule
 
 
-def automatic_upgrade(old: Any, new: Any):
+def automatic_upgrade(old: Any, new: Any) -> None:
+    old_type = materialize_type(old.__class__)
+    assert isinstance(old_type, Struct)
     autofixes = SchemaChecker(
-        materialize_type(old.__class__), new.__class__, perform_upgrade=False
+        old_type, new.__class__, perform_upgrade=False
     ).proposed_fixes
 
     @dataclass
-    class NewWithUpgradeRules(new.__class__):
+    class NewWithUpgradeRules(new.__class__):  # type: ignore
         @classmethod
         def upgrade_rules(clz) -> Dict[int, List[RewriteRule]]:
             return {

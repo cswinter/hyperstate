@@ -21,7 +21,7 @@ INTERPOLATORS = {
 
 @dataclass
 class Schedule:
-    update_value: Callable[[Any], None]
+    update_value: Callable[[Any, Any], None]
     unparsed: str
 
 
@@ -45,6 +45,7 @@ class PiecewiseFunction:
             segment = s
             if x < s.end:
                 break
+        assert segment is not None
         rescaled = (x - segment.start) / (segment.end - segment.start)
         if rescaled < 0:
             rescaled = 0
@@ -55,7 +56,7 @@ class PiecewiseFunction:
         return w * segment.initial_value + (1 - w) * segment.final_value
 
 
-def _parse_schedule(schedule: str) -> Callable[[float], float]:
+def _parse_schedule(schedule: str) -> PiecewiseFunction:
     # Grammar
     #
     # rule := ident ": " point [join point]
@@ -73,11 +74,11 @@ def _parse_schedule(schedule: str) -> Callable[[float], float]:
     interpolator = INTERPOLATORS["lin"]
     last_x, last_y = None, None
     xname = parts[0][:-1]
-    segments = []
+    segments: List[ScheduleSegment] = []
     for part in parts[1:]:
         if "@" in part:
-            y, x = part.split("@")
-            y, x = float(y), float(x)
+            _y, _x = part.split("@")
+            y, x = float(_y), float(_x)
             if last_x is not None:
                 segments.append(
                     ScheduleSegment(

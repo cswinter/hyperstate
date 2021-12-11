@@ -32,7 +32,9 @@ class Serializer(ABC):
     ) -> Tuple[Any, bool]:
         pass
 
-    def modify_dataclass_attrs(self, value: Any, attrs: Dict[str, Any], path: str):
+    def modify_dataclass_attrs(
+        self, value: Any, attrs: Dict[str, Any], path: str
+    ) -> None:
         pass
 
 
@@ -43,12 +45,12 @@ class Deserializer(ABC):
         clz: Type[T],
         value: Any,
         path: str,
-    ) -> Tuple[T, bool, bool]:
+    ) -> Tuple[Optional[T], bool, bool]:
         pass
 
 
 def asdict(
-    value,
+    value: Any,
     named_tuples: bool = False,
     serializers: Optional[List[Serializer]] = None,
     path: str = "",
@@ -104,9 +106,9 @@ def from_dict(
 
     if is_optional(clz):
         if value is None:
-            return None
+            return None  # type: ignore
         else:
-            clz = clz.__args__[0]
+            clz = clz.__args__[0]  # type: ignore
 
     ret = False
     for deserializer in deserializers:
@@ -115,39 +117,39 @@ def from_dict(
             value = _value
         ret = ret or _ret
     if ret:
-        return _value
+        return _value  # type: ignore
     if inspect.isclass(clz) and isinstance(value, clz):
         return value
     elif clz == str and isnamedtupleinstance(value) and len(value._fields) == 0:
-        return value.__class__.__name__
+        return value.__class__.__name__  # type: ignore
     elif clz == float and isinstance(value, int):
-        return int(value)
+        return float(value)  # type: ignore
     elif clz == int and isinstance(value, float) and int(value) == value:
-        return int(value)
+        return int(value)  # type: ignore
     elif clz == float and isinstance(value, str):
-        return float(value)
+        return float(value)  # type: ignore
     elif clz == int and isinstance(value, str):
         f = float(value)
         if int(f) == f:
-            return int(f)
+            return int(f)  # type: ignore
         else:
             raise ValueError(f"Expected {path} to be an int, got {value}")
     elif (
         hasattr(clz, "__args__")
-        and len(clz.__args__) == 1
-        and clz == List[clz.__args__]
+        and len(clz.__args__) == 1  # type: ignore
+        and clz == List[clz.__args__]  # type: ignore
         and isinstance(value, list)
     ):
         # TODO: recurse
-        return value
+        return value  # type: ignore
     elif (
         hasattr(clz, "__args__")
-        and len(clz.__args__) == 2
-        and clz == Dict[clz.__args__]
+        and len(clz.__args__) == 2  # type: ignore
+        and clz == Dict[clz.__args__]  # type: ignore
         and isinstance(value, dict)
     ):
         # TODO: recurse
-        return value
+        return value  # type: ignore
     elif is_dataclass(clz):
         # TODO: better error
         if value == ():
@@ -158,9 +160,9 @@ def from_dict(
             value, dict
         ), f"{value} cannot be deserialized as dataclass {clz}"
         kwargs = {}
-        remaining_fields = set(clz.__dataclass_fields__.keys())
+        remaining_fields = set(clz.__dataclass_fields__.keys())  # type: ignore
         for field_name, v in value.items():
-            field = clz.__dataclass_fields__.get(field_name)
+            field = clz.__dataclass_fields__.get(field_name)  # type: ignore
             if field is None:
                 raise TypeError(
                     f"{clz.__module__}.{clz.__name__} has no attribute {field_name}."
@@ -173,7 +175,7 @@ def from_dict(
                 path=f"{path}.{field_name}" if path else field_name,
             )
         for field_name in remaining_fields:
-            field = clz.__dataclass_fields__.get(field_name)
+            field = clz.__dataclass_fields__.get(field_name)  # type: ignore
             if (
                 field.default is MISSING
                 and field.default_factory is MISSING
@@ -181,7 +183,7 @@ def from_dict(
             ):
                 kwargs[field_name] = field.type()
         try:
-            instance = clz(**kwargs)
+            instance = clz(**kwargs)  # type: ignore
             return instance
         except TypeError as e:
             raise TypeError(f"Failed to initialize {path}: {e}")
@@ -198,7 +200,7 @@ def load(
     clz: Type[T],
     source: Union[str, Path],
     deserializers: Optional[List[Deserializer]] = None,
-) -> Tuple[T, Dict[str, Any]]:
+) -> T:
     if deserializers is None:
         deserializers = []
     if isinstance(source, str):
@@ -211,8 +213,10 @@ def load(
 
 
 def dump(
-    obj, path: Optional[Path] = None, serializers: Optional[List[Serializer]] = None
-) -> None:
+    obj: Any,
+    path: Optional[Path] = None,
+    serializers: Optional[List[Serializer]] = None,
+) -> str:
     if serializers is None:
         serializers = []
     state_dict = asdict(obj, named_tuples=True, serializers=serializers)
@@ -220,20 +224,19 @@ def dump(
     if path:
         with open(path, "w") as f:
             f.write(serialized)
-    else:
-        return serialized
+    return serialized
 
 
-def is_optional(clz):
+def is_optional(clz: Type[Any]) -> bool:
     return (
         hasattr(clz, "__origin__")
-        and clz.__origin__ is Union  # type: ignore
+        and clz.__origin__ is Union
         and clz.__args__.__len__() == 2
         and clz.__args__[1] is type(None)
     )
 
 
-def _qualified_name(clz):
+def _qualified_name(clz: Type[Any]) -> str:
     if clz.__module__ == "builtin":
         return clz.__name__
     elif not hasattr(clz, "__module__") or not hasattr(clz, "__name__"):
@@ -242,7 +245,7 @@ def _qualified_name(clz):
         return f"{clz.__module__}.{clz.__name__}"
 
 
-def isnamedtupleinstance(x):
+def isnamedtupleinstance(x: Any) -> bool:
     t = type(x)
     b = t.__bases__
     if len(b) != 1 or b[0] != tuple:

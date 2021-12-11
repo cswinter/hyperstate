@@ -1,8 +1,8 @@
-from abc import ABC, abstractclassmethod
+from abc import ABC, abstractmethod
 from collections import namedtuple
 from dataclasses import dataclass
 from inspect import isclass
-from typing import Any, Dict, List, Type, TypeVar, Callable, Tuple
+from typing import Any, Dict, List, Optional, Type, TypeVar, Callable, Tuple
 from hyperstate.schema import types
 from hyperstate.serde import (
     Deserializer,
@@ -14,9 +14,10 @@ from hyperstate.schema.rewrite_rule import RewriteRule
 T = TypeVar("T")
 
 
-@dataclass
+@dataclass  # type: ignore
 class Versioned(ABC):
-    @abstractclassmethod
+    @abstractmethod
+    @classmethod
     def version(clz) -> int:
         raise NotImplementedError(f"{clz.__name__}.version() not implemented")
 
@@ -44,8 +45,8 @@ class Versioned(ABC):
         return state_dict
 
     @classmethod
-    def _apply_schema_upgrades(clz, schema: types.Struct):
-        for i in range(schema.version, clz.version()):
+    def _apply_schema_upgrades(clz, schema: types.Struct) -> None:
+        for i in range(schema.version or 0, clz.version()):
             for rule in clz.upgrade_rules().get(i, []):
                 rule.apply_to_schema(schema)
 
@@ -54,7 +55,12 @@ class Versioned(ABC):
 class VersionedDeserializer(Deserializer):
     allow_missing_version: bool = False
 
-    def deserialize(self, clz: Type[T], value: Any, path: str,) -> Tuple[T, bool, bool]:
+    def deserialize(
+        self,
+        clz: Type[T],
+        value: Any,
+        path: str,
+    ) -> Tuple[Optional[T], bool, bool]:
         if isclass(clz) and issubclass(clz, Versioned):
             version = value.pop("version", None)
             if version is None:
@@ -68,10 +74,17 @@ class VersionedDeserializer(Deserializer):
 
 @dataclass
 class VersionedSerializer(Serializer):
-    def serialize(self, value: Any, path: str, named_tuples: bool,) -> Tuple[Any, bool]:
+    def serialize(
+        self,
+        value: Any,
+        path: str,
+        named_tuples: bool,
+    ) -> Tuple[Any, bool]:
         return None, False
 
-    def modify_dataclass_attrs(self, value: Any, attrs: Dict[str, Any], path: str):
+    def modify_dataclass_attrs(
+        self, value: Any, attrs: Dict[str, Any], path: str
+    ) -> None:
         if isinstance(value, Versioned):
             # Insert version as first element so it shows up at start of config file
             _attrs = dict(attrs)

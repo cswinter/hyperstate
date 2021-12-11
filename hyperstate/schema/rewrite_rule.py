@@ -27,8 +27,9 @@ class RenameField(RewriteRule):
             _insert(state_dict, self.new_field, value)
         return state_dict
 
-    def apply_to_schema(self, schema: types.Type) -> Dict[str, Any]:
+    def apply_to_schema(self, schema: types.Type) -> None:
         field = _remove_schema(schema, self.old_field)
+        assert field is not None, f"Field {self.old_field} not found in schema"
         _insert_schema(schema, self.new_field, field)
 
 
@@ -40,7 +41,7 @@ class DeleteField(RewriteRule):
         _remove(state_dict, self.field)
         return state_dict
 
-    def apply_to_schema(self, schema: types.Type) -> Dict[str, Any]:
+    def apply_to_schema(self, schema: types.Type) -> None:
         _remove_schema(schema, self.field)
 
 
@@ -58,7 +59,7 @@ class MapFieldValue(RewriteRule):
             _insert(state_dict, path, new_value)
         return state_dict
 
-    def apply_to_schema(self, schema: types.Type) -> Dict[str, Any]:
+    def apply_to_schema(self, schema: types.Type) -> None:
         raise NotImplementedError
 
 
@@ -75,8 +76,9 @@ class ChangeDefault(RewriteRule):
             _insert(state_dict, self.field, existing_value)
         return state_dict
 
-    def apply_to_schema(self, schema: types.Type) -> Dict[str, Any]:
+    def apply_to_schema(self, schema: types.Type) -> None:
         field = _remove_schema(schema, self.field)
+        assert field is not None, f"Field {self.field} not found in schema"
         _insert_schema(schema, self.field, replace(field, default=self.new_default))
 
 
@@ -90,12 +92,13 @@ class AddDefault(RewriteRule):
         _insert(state_dict, self.field, value if present else self.default)
         return state_dict
 
-    def apply_to_schema(self, schema: types.Type) -> Dict[str, Any]:
+    def apply_to_schema(self, schema: types.Type) -> None:
         field = _remove_schema(schema, self.field)
+        assert field is not None, f"Field {self.field} not found in schema"
         _insert_schema(schema, self.field, replace(field, default=self.default))
 
 
-def _remove(state_dict: Dict[str, Any], path: List[str]) -> Tuple[Any, bool]:
+def _remove(state_dict: Dict[str, Any], path: Sequence[str]) -> Tuple[Any, bool]:
     assert len(path) > 0
     for field in path[:-1]:
         if field not in state_dict:
@@ -108,7 +111,7 @@ def _remove(state_dict: Dict[str, Any], path: List[str]) -> Tuple[Any, bool]:
     return value, True
 
 
-def _insert(state_dict: Dict[str, Any], path: List[str], value: Any) -> None:
+def _insert(state_dict: Dict[str, Any], path: Sequence[str], value: Any) -> None:
     assert len(path) > 0
     for field in path[:-1]:
         if field not in state_dict:
@@ -117,7 +120,7 @@ def _insert(state_dict: Dict[str, Any], path: List[str], value: Any) -> None:
     state_dict[path[-1]] = value
 
 
-def _remove_schema(schema: types.Type, path: List[str]) -> Optional[types.Field]:
+def _remove_schema(schema: types.Type, path: Sequence[str]) -> Optional[types.Field]:
     assert len(path) > 0
     for field in path[:-1]:
         if not isinstance(schema, types.Struct):
@@ -129,12 +132,12 @@ def _remove_schema(schema: types.Type, path: List[str]) -> Optional[types.Field]
         return None
     if path[-1] not in schema.fields:
         return None
-    field = schema.fields[path[-1]]
+    f = schema.fields[path[-1]]
     del schema.fields[path[-1]]
-    return field
+    return f
 
 
-def _insert_schema(schema: types.Type, path: List[str], field: types.Field) -> None:
+def _insert_schema(schema: types.Type, path: Sequence[str], field: types.Field) -> None:
     assert len(path) > 0
     for field_name in path[:-1]:
         if not isinstance(schema, types.Struct):

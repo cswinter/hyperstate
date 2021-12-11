@@ -3,6 +3,7 @@ import shutil
 from abc import ABC, abstractmethod
 from pathlib import Path
 import tempfile
+import importlib
 from typing import (
     Callable,
     Generic,
@@ -64,7 +65,7 @@ class HyperState(ABC, Generic[C, S]):
 
         checkpoint = None
         if checkpoint_dir is not None:
-            self.checkpoint_dir = Path(checkpoint_dir)
+            self.checkpoint_dir: Optional[Path] = Path(checkpoint_dir)
             checkpoint = find_latest_checkpoint(checkpoint_dir)
             if checkpoint is not None:
                 print(f"Resuming from checkpoint {checkpoint}")
@@ -74,7 +75,7 @@ class HyperState(ABC, Generic[C, S]):
 
         if os.path.isdir(initial_config):
             config_path = initial_config / "config.ron"
-            state_path = initial_config / "state.ron"
+            state_path: Optional[Path] = initial_config / "state.ron"
         else:
             config_path = initial_config
             state_path = None
@@ -103,10 +104,10 @@ class HyperState(ABC, Generic[C, S]):
     def initial_state(self) -> S:
         pass
 
-    def checkpoint_key(self):
+    def checkpoint_key(self) -> str:
         return "step"
 
-    def checkpoint(self, target_dir: str):
+    def checkpoint(self, target_dir: str) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             p = Path(tmpdir) / "checkpoint"
             p.mkdir()
@@ -114,7 +115,7 @@ class HyperState(ABC, Generic[C, S]):
             _typed_dump(self.state, p / "state.ron")
             shutil.move(str(p), target_dir)
 
-    def step(self):
+    def step(self) -> None:
         _apply_schedules(self.state, self.config, self.schedules)
         if self.checkpoint_dir is not None:
             val = getattr(self.state, self.checkpoint_key())
@@ -131,11 +132,11 @@ class HyperState(ABC, Generic[C, S]):
             self._last_checkpoint = checkpoint_dir
             # TODO: persistent checkpoints
 
-    def config_dict(self):
+    def config_dict(self) -> Any:
         return asdict(self.config, serializers=[VersionedSerializer()])
 
 
-def _apply_schedules(state, config, schedules: Dict[str, Any]):
+def _apply_schedules(state: Any, config: Any, schedules: Dict[str, Any]) -> None:
     for field_name, schedule in schedules.items():
         if isinstance(schedule, Schedule):
             schedule.update_value(config, state)
@@ -145,11 +146,11 @@ def _apply_schedules(state, config, schedules: Dict[str, Any]):
 
 
 def _typed_dump(
-    obj,
+    obj: Any,
     path: Optional[Path] = None,
     schedules: Optional[Dict[str, Any]] = None,
     elide_defaults: bool = False,
-) -> None:
+) -> str:
     serializers = []
     lazy_serializer = LazySerializer()
     serializers = [lazy_serializer, VersionedSerializer()]
@@ -165,13 +166,11 @@ def _typed_dump(
     return result
 
 
-def dump(
-    obj, path: Optional[Path] = None, elide_defaults: bool = False
-) -> Union[None, str]:
+def dump(obj: Any, path: Optional[Path] = None, elide_defaults: bool = False) -> str:
     return _typed_dump(obj, path, elide_defaults=elide_defaults)
 
 
-def dumps(obj, elide_defaults: bool = False) -> str:
+def dumps(obj: Any, elide_defaults: bool = False) -> str:
     return dump(obj, elide_defaults=elide_defaults)
 
 
@@ -183,7 +182,7 @@ def _typed_load(
     allow_missing_version: bool = False,
 ) -> Tuple[T, Dict[str, Any]]:
     if overrides is not None:
-        deserializers = [OverridesDeserializer(overrides)]
+        deserializers: List[Deserializer] = [OverridesDeserializer(overrides)]
     else:
         deserializers = []
     schedules = ScheduleDeserializer()
@@ -197,7 +196,7 @@ def _typed_load(
         source = "{}"
     value = serde.load(clz, source, deserializers=deserializers)
     if lazy is not None and len(lazy.lazy_fields) > 0:
-        value._unloaded_lazy_fields = lazy.lazy_fields
+        value._unloaded_lazy_fields = lazy.lazy_fields  # type: ignore
     return value, schedules.schedules
 
 
@@ -244,7 +243,7 @@ class OverridesDeserializer(Deserializer):
         clz: Type[T],
         value: Any,
         path: str,
-    ) -> Tuple[T, bool, bool]:
+    ) -> Tuple[Optional[T], bool, bool]:
         if self.applied_overrides:
             return None, False, False
         for override in self.overrides:
@@ -265,23 +264,24 @@ class OverridesDeserializer(Deserializer):
 
 
 class ScheduleDeserializer(Deserializer):
-    def __init__(self):
-        self.schedules = {}
+    def __init__(self) -> None:
+        # Use recursive type once supported (https://github.com/python/mypy/issues/731): ScheduleDict = Union[Dict[str, "ScheduleDict"], Schedule]
+        self.schedules: Dict[str, Any] = {}
 
     def deserialize(
         self,
         clz: Type[T],
         value: Any,
         path: str,
-    ) -> Tuple[T, bool, bool]:
+    ) -> Tuple[Optional[T], bool, bool]:
         if (clz == int or clz == float) and isinstance(value, str) and "@" in value:
             schedule = _parse_schedule(value)
             field_name = path.split(".")[-1]
 
-            def update(self, state):
+            def update(self: T, state: Any) -> None:
                 x = getattr(state, schedule.xname)
                 value = schedule.get_value(x)
-                setattr(self, field_name, clz(value))
+                setattr(self, field_name, clz(value))  # type: ignore
 
             schedules = self.schedules
             for segment in path.split(".")[:-1]:
@@ -290,13 +290,14 @@ class ScheduleDeserializer(Deserializer):
                 schedules = self.schedules[segment]
             schedules[field_name] = Schedule(update, value)
             value = schedule.get_value(0.0)
-            return clz(value), True, False
+            return clz(value), True, False  # type: ignore
         return None, False, False
 
 
 @dataclass
 class ScheduleSerializer(Serializer):
-    schedules: Dict[str, Schedule]
+    # Use recursive type once supported (https://github.com/python/mypy/issues/731): ScheduleDict = Union[Dict[str, "ScheduleDict"], Schedule]
+    schedules: Dict[str, Any]
 
     def serialize(self, value: Any, path: str, namedtuples: bool) -> Tuple[Any, bool]:
         segments = path.split(".")
@@ -310,10 +311,16 @@ class ScheduleSerializer(Serializer):
         return None, False
 
 
-def _dict_to_cpu(x: Any) -> Dict[str, Any]:
-    import torch
+def _dict_to_cpu(x: Any) -> Any:
+    has_torch = False
+    try:
+        import torch  # pyright: reportMissingImports=false
 
-    if isinstance(x, torch.Tensor):
+        has_torch = True
+    except ModuleNotFoundError:
+        pass
+
+    if has_torch and isinstance(x, torch.Tensor):
         return x.cpu().numpy()
     elif isinstance(x, dict):
         return {k: _dict_to_cpu(v) for k, v in x.items()}
@@ -333,7 +340,9 @@ class ElideDefaults(Serializer):
     ) -> Tuple[Any, bool]:
         return None, False
 
-    def modify_dataclass_attrs(self, value: Any, attrs: Dict[str, Any], path: str):
+    def modify_dataclass_attrs(
+        self, value: Any, attrs: Dict[str, Any], path: str
+    ) -> None:
         for name, field in value.__class__.__dataclass_fields__.items():
             if field.default is not MISSING and attrs[name] == field.default:
                 del attrs[name]

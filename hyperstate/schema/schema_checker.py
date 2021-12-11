@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple, Type, Any
+from typing import Callable, List, Optional, Tuple, Any, Type
 import typing
 from dataclasses import is_dataclass
 from pathlib import Path
@@ -23,26 +23,32 @@ from hyperstate.schema.schema_change import (
     TypeChanged,
 )
 from hyperstate.schema.versioned import Versioned
-from .types import Type, load_schema, materialize_type
-from . import types
+from .types import load_schema, materialize_type
+from . import types as t
+
+TAdded = typing.TypeVar("TAdded", bound="SchemaChange")
+TRemoved = typing.TypeVar("TRemoved", bound="SchemaChange")
 
 
 class SchemaChecker:
     def __init__(
         self,
-        old: Type,
-        config_clz: typing.Type[Versioned],
+        old: t.Struct,
+        config_clz: Type[Versioned],
         perform_upgrade: bool = True,
     ):
         self.config_clz = config_clz
-        self.new = materialize_type(config_clz)
+        new = materialize_type(config_clz)
+        assert isinstance(new, t.Struct)
+        self.new = new
         if perform_upgrade:
             config_clz._apply_schema_upgrades(old)
         self.old = old
         self.changes: List[SchemaChange] = []
         self.proposed_fixes = []
         self._find_changes(old, self.new, [])
-        self._find_renames()
+        self._find_field_renames()
+        self._find_enum_variant_renames()
         for change in self.changes:
             proposed_fix = change.proposed_fix()
             if proposed_fix is not None:
@@ -55,7 +61,7 @@ class SchemaChecker:
                 max_severity = change.severity()
         return max_severity
 
-    def print_report(self):
+    def print_report(self) -> None:
         for change in self.changes:
             change.emit_diagnostic()
         if self.severity() > Severity.INFO and self.old.version == self.new.version:
@@ -78,21 +84,25 @@ class SchemaChecker:
                 print("    ],")
             if self.severity() > Severity.INFO and self.old.version == self.new.version:
                 click.secho(
-                    f"- bump version to {self.old.version + 1}", fg="white", bold=True
+                    f"- bump version to {self.old.version or -1 + 1}",
+                    fg="white",
+                    bold=True,
                 )
 
-    def _find_changes(self, old: Type, new: Type, path: typing.List[str]):
+    def _find_changes(self, old: t.Type, new: t.Type, path: List[str]) -> None:
         if old.__class__ != new.__class__:
             self.changes.append(TypeChanged(tuple(path), old, new))
-        elif isinstance(old, types.Primitive):
+        elif isinstance(old, t.Primitive):
             if old != new:
                 self.changes.append(TypeChanged(tuple(path), old, new))
-        elif isinstance(old, types.List):
+        elif isinstance(old, t.List):
+            assert isinstance(new, t.List)
             self._find_changes(old.inner, new.inner, path + ["[]"])
-        elif isinstance(old, types.Struct):
+        elif isinstance(old, t.Struct):
+            assert isinstance(new, t.Struct)
             for name, field in new.fields.items():
                 if name not in old.fields:
-                    if isinstance(field.type, types.Struct):
+                    if isinstance(field.type, t.Struct):
                         self._all_new(field.type, path + [name])
                     else:
                         self.changes.append(
@@ -105,8 +115,8 @@ class SchemaChecker:
                         )
                 else:
                     oldfield = old.fields[name]
-                    if isinstance(field.type, types.Struct) and not isinstance(
-                        oldfield.type, types.Struct
+                    if isinstance(field.type, t.Struct) and not isinstance(
+                        oldfield.type, t.Struct
                     ):
                         self.changes.append(
                             FieldRemoved(
@@ -117,8 +127,8 @@ class SchemaChecker:
                             )
                         )
                         self._all_new(field.type, path + [name])
-                    elif isinstance(oldfield.type, types.Struct) and not isinstance(
-                        field.type, types.Struct
+                    elif isinstance(oldfield.type, t.Struct) and not isinstance(
+                        field.type, t.Struct
                     ):
                         self.changes.append(
                             FieldAdded(
@@ -153,32 +163,44 @@ class SchemaChecker:
             # Check for removed fields
             for name, field in old.fields.items():
                 if name not in new.fields:
-                    if isinstance(field.type, types.Struct):
+                    if isinstance(field.type, t.Struct):
                         self._all_gone(field.type, path + [name])
                     else:
                         self.changes.append(
                             FieldRemoved(
-                                tuple(path + [name],),
+                                tuple(
+                                    path + [name],
+                                ),
                                 field.type,
                                 field.default,
                                 field.has_default,
                             )
                         )
 
-        elif isinstance(old, types.Option):
+        elif isinstance(old, t.Option):
+            assert isinstance(new, t.Option)
             self._find_changes(old.type, new.type, path + ["?"])
-        elif isinstance(old, types.Enum):
-            assert isinstance(new, types.Enum)
+        elif isinstance(old, t.Enum):
+            assert isinstance(new, t.Enum)
             for name, value in new.variants.items():
                 if name not in old.variants:
                     self.changes.append(
-                        EnumVariantAdded(tuple(path), new.name, name, value,)
+                        EnumVariantAdded(
+                            tuple(path),
+                            new.name,
+                            name,
+                            value,
+                        )
                     )
                 else:
                     if old.variants[name] != value:
                         self.changes.append(
                             EnumVariantValueChanged(
-                                tuple(path), new.name, name, old.variants[name], value,
+                                tuple(path),
+                                new.name,
+                                name,
+                                old.variants[name],
+                                value,
                             )
                         )
             for name, value in old.variants.items():
@@ -189,27 +211,30 @@ class SchemaChecker:
         else:
             raise ValueError(f"Field {'.'.join(path)} has unsupported type {type(old)}")
 
-    def _find_renames(self):
-        # TODO: O(n^3). can be implemented in O(n^2 log n)
+    def _find_renames(
+        self,
+        cls_added: Type[TAdded],
+        cls_removed: Type[TRemoved],
+        similarity: Callable[[TAdded, TRemoved], Optional[float]],
+        new_renamed: Callable[[TAdded, TRemoved], SchemaChange],
+    ) -> None:
         threshold = 0.1
-        removeds = [
-            change for change in self.changes if isinstance(change, FieldRemoved)
+        removeds: List[TRemoved] = [
+            change for change in self.changes if isinstance(change, cls_removed)
         ]
-        addeds = [change for change in self.changes if isinstance(change, FieldAdded)]
+        addeds: List[TAdded] = [
+            change for change in self.changes if isinstance(change, cls_added)
+        ]
+        # TODO: O(n^3). can be implemented in O(n^2 log n)
         while True:
             best_similarity = threshold
-            best_match: Optional[Tuple[EnumVariantRemoved, EnumVariantAdded]] = None
+            best_match: Optional[Tuple[TRemoved, TAdded]] = None
             for removed in removeds:
                 for added in addeds:
-                    if (
-                        removed.type == added.type
-                        and removed.has_default == added.has_default
-                        and removed.default == added.default
-                    ):
-                        similarity = name_similarity(removed.field[-1], added.field[-1])
-                        if similarity > best_similarity:
-                            best_similarity = similarity
-                            best_match = (removed, added)
+                    simi = similarity(added, removed)
+                    if simi is not None and simi > best_similarity:
+                        best_similarity = simi
+                        best_match = (removed, added)
 
             if best_match is None:
                 break
@@ -218,49 +243,54 @@ class SchemaChecker:
             self.changes.remove(added)
             removeds.remove(removed)
             addeds.remove(added)
-            self.changes.append(FieldRenamed(removed.field, added.field))
-        removeds = [
-            change for change in self.changes if isinstance(change, EnumVariantRemoved)
-        ]
-        addeds = [
-            change for change in self.changes if isinstance(change, EnumVariantAdded)
-        ]
-        while True:
-            best_similarity = threshold
-            best_match: Optional[Tuple[EnumVariantRemoved, EnumVariantAdded]] = None
-            for removed in removeds:
-                for added in addeds:
-                    similarity = name_similarity(removed.variant, added.variant)
-                    if similarity > best_similarity:
-                        best_similarity = similarity
-                        best_match = (removed, added)
-            if best_match is None:
-                break
-            removed, added = best_match
-            self.changes.remove(removed)
-            self.changes.remove(added)
-            removeds.remove(removed)
-            addeds.remove(added)
+            self.changes.append(new_renamed(added, removed))
+
+    def _find_field_renames(self) -> None:
+        def field_similarity(
+            added: FieldAdded, removed: FieldRemoved
+        ) -> Optional[float]:
+            if (
+                removed.type == added.type
+                and removed.has_default == added.has_default
+                and removed.default == added.default
+            ):
+                return name_similarity(removed.field[-1], added.field[-1])
+            return None
+
+        def field_renamed(added: FieldAdded, removed: FieldRemoved) -> SchemaChange:
+            return FieldRenamed(removed.field, added.field)
+
+        self._find_renames(FieldAdded, FieldRemoved, field_similarity, field_renamed)
+
+    def _find_enum_variant_renames(self) -> None:
+        def enum_similarity(
+            added: EnumVariantAdded, removed: EnumVariantRemoved
+        ) -> Optional[float]:
+            return name_similarity(removed.variant, added.variant)
+
+        def enum_renamed(
+            added: EnumVariantAdded, removed: EnumVariantRemoved
+        ) -> SchemaChange:
             if removed.variant_value != added.variant_value:
-                self.changes.append(
-                    EnumVariantValueChanged(
-                        removed.field,
-                        added.enum_name,
-                        removed.variant,
-                        removed.variant_value,
-                        added.variant_value,
-                    )
+                return EnumVariantValueChanged(
+                    removed.field,
+                    added.enum_name,
+                    removed.variant,
+                    removed.variant_value,
+                    added.variant_value,
                 )
             else:
-                self.changes.append(
-                    EnumVariantRenamed(
-                        added.field, added.enum_name, removed.variant, added.variant
-                    )
+                return EnumVariantRenamed(
+                    added.field, added.enum_name, removed.variant, added.variant
                 )
 
-    def _all_new(self, struct: types.Struct, path: typing.List[str]):
+        self._find_renames(
+            EnumVariantAdded, EnumVariantRemoved, enum_similarity, enum_renamed
+        )
+
+    def _all_new(self, struct: t.Struct, path: typing.List[str]) -> None:
         for name, field in struct.fields.items():
-            if isinstance(field.type, types.Struct):
+            if isinstance(field.type, t.Struct):
                 self._all_new(field.type, path + [name])
             else:
                 self.changes.append(
@@ -272,9 +302,9 @@ class SchemaChecker:
                     )
                 )
 
-    def _all_gone(self, struct: types.Struct, path: typing.List[str]):
+    def _all_gone(self, struct: t.Struct, path: typing.List[str]) -> None:
         for name, field in struct.fields.items():
-            if isinstance(field.type, types.Struct):
+            if isinstance(field.type, t.Struct):
                 self._all_gone(field.type, path + [name])
             else:
                 self.changes.append(
@@ -287,7 +317,7 @@ class SchemaChecker:
                 )
 
 
-def name_similarity(field1: str, field2: str):
+def name_similarity(field1: str, field2: str) -> float:
     # Special cases
     # TODO: fold these into tweaked levenshtein with different costs for different edits
     if field1 == field2:
@@ -301,7 +331,7 @@ def name_similarity(field1: str, field2: str):
     return 1 - levenshtein(field1, field2) / max(len(field1), len(field2))
 
 
-def levenshtein(s1, s2):
+def levenshtein(s1: str, s2: str) -> float:
     if len(s1) < len(s2):
         return levenshtein(s2, s1)
 
@@ -309,15 +339,15 @@ def levenshtein(s1, s2):
     if len(s2) == 0:
         return len(s1)
 
-    previous_row = range(len(s2) + 1)
+    previous_row: List[float] = list(range(len(s2) + 1))
     for i, c1 in enumerate(s1):
-        current_row = [i + 1]
+        current_row = [i + 1.0]
         for j, c2 in enumerate(s2):
             insertions = (
                 previous_row[j + 1] + 1
             )  # j+1 instead of j since previous_row and current_row are one character longer
             deletions = current_row[j] + 1  # than s2
-            substitution_cost = 1
+            substitution_cost = 1.0
             if c1 == c2:
                 substitution_cost = 0
             elif c1.lower() == c2.lower():
@@ -329,14 +359,15 @@ def levenshtein(s1, s2):
     return previous_row[-1]
 
 
-def _dump_schema(filename: str, type: typing.Type[Versioned]):
+def _dump_schema(filename: str, type: typing.Type[Versioned]) -> None:
     serialized = pyron.to_string(materialize_type(type))
     with open(filename, "w") as f:
         f.write(serialized)
 
 
-def _upgrade_schema(filename: str, config_clz: typing.Type[Versioned]):
+def _upgrade_schema(filename: str, config_clz: typing.Type[Versioned]) -> None:
     schema = load_schema(filename)
+    assert isinstance(schema, t.Struct)
     checker = SchemaChecker(schema, config_clz)
     if checker.severity() >= Severity.WARN:
         checker.print_report()
@@ -350,7 +381,7 @@ def _upgrade_config(
     config_clz: typing.Type[Versioned],
     elide_defaults: bool,
     dry_run: bool,
-):
+) -> None:
     click.secho(filename, fg="cyan")
     config, schedules = _typed_load(config_clz, Path(filename))
     upgraded_config = _typed_dump(
@@ -359,7 +390,8 @@ def _upgrade_config(
     if dry_run:
         original_config = open(filename).read()
         diff = difflib.unified_diff(
-            original_config.splitlines(), upgraded_config.splitlines(),
+            original_config.splitlines(),
+            upgraded_config.splitlines(),
         )
         for line in list(diff)[3:]:
             if line.startswith("+"):
@@ -374,33 +406,34 @@ def _upgrade_config(
         open(filename, "w").write(upgraded_config)
 
 
-CONFIG_CLZ: typing.Type[Any] = None
+CONFIG_CLZ: typing.Type[Any] = None  # type: ignore
 
 
 @click.group()
-def cli():
+def cli() -> None:
     pass
 
 
 @cli.command()
 @click.argument("filename", default="config-schema.ron", type=click.Path())
-def dump_schema(filename: str):
+def dump_schema(filename: str) -> None:
     global CONFIG_CLZ
     _dump_schema(filename, CONFIG_CLZ)
 
 
 @cli.command()
 @click.argument("filename", default="config-schema.ron", type=click.Path())
-def upgrade_schema(filename: str):
+def upgrade_schema(filename: str) -> None:
     global CONFIG_CLZ
     _upgrade_schema(filename, CONFIG_CLZ)
 
 
 @cli.command()
 @click.argument("filename", default="config-schema.ron", type=click.Path())
-def check_schema(filename: str):
+def check_schema(filename: str) -> None:
     global CONFIG_CLZ
     old = load_schema(filename)
+    assert isinstance(old, t.Struct)
     SchemaChecker(old, CONFIG_CLZ).print_report()
 
 
@@ -408,12 +441,14 @@ def check_schema(filename: str):
 @click.argument("files", nargs=-1, type=click.Path())
 @click.option("--include-defaults", is_flag=True)
 @click.option("--dry-run", is_flag=True)
-def upgrade_config(files: typing.List[str], include_defaults: bool, dry_run: bool):
+def upgrade_config(
+    files: typing.List[str], include_defaults: bool, dry_run: bool
+) -> None:
     for file in files:
         _upgrade_config(file, CONFIG_CLZ, not include_defaults, dry_run)
 
 
-def schema_evolution_cli(config_clz: typing.Type[Any]):
+def schema_evolution_cli(config_clz: typing.Type[Any]) -> None:
     global CONFIG_CLZ
     CONFIG_CLZ = config_clz
     cli()

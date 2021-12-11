@@ -2,8 +2,8 @@ from abc import ABC, abstractclassmethod, abstractmethod
 import inspect
 from typing import (
     Any,
-    Callable,
     Dict,
+    Optional,
     Tuple,
     Type,
     Generic,
@@ -25,14 +25,15 @@ class Serializable(ABC):
     def serialize(self) -> Any:
         pass
 
-    @abstractclassmethod
+    @abstractmethod
+    @classmethod
     def deserialize(clz: Type[T], state_dict: Any, config: Any, state: Any) -> T:
         pass
 
 
 class Lazy:
-    def __init__(self):
-        self._unloaded_lazy_fields = {}
+    def __init__(self) -> None:
+        self._unloaded_lazy_fields: Any = {}
 
     def __getattribute__(self, name: str) -> Any:
         try:
@@ -62,14 +63,16 @@ class Lazy:
 class LazyDeserializer(Deserializer, Generic[C]):
     config: C
     path: Path
-    lazy_fields: Dict[str, Tuple[C, str, bool]] = field(default_factory=dict)
+    lazy_fields: Dict[str, Tuple[Type[Serializable], C, Path, bool]] = field(
+        default_factory=dict
+    )
 
     def deserialize(
         self,
         clz: Type[T],
         value: Any,
         path: str,
-    ) -> Tuple[T, bool, bool]:
+    ) -> Tuple[Optional[T], bool, bool]:
         if inspect.isclass(clz) and issubclass(clz, Serializable):
             assert value == "<BLOB>" or value == "<blob:msgpack>"
             filepath = path.replace(".", "/").replace("[", "/").replace("]", "")
@@ -77,7 +80,7 @@ class LazyDeserializer(Deserializer, Generic[C]):
                 clz,
                 self.config,
                 self.path / filepath,
-                value == "<BLOB>",
+                bool(value == "<BLOB>"),
             )
             return None, True, True
         return None, False, False
@@ -106,7 +109,7 @@ class LazySerializer(Serializer):
 
 
 def blob(clz: Type[T], mixin: Type[Serializable]) -> Type[T]:
-    class Blob(mixin, clz):
+    class Blob(mixin, clz):  # type: ignore
         pass
 
     return Blob
