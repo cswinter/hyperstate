@@ -100,6 +100,7 @@ def from_dict(
     value: Any,
     deserializers: Optional[List[Deserializer]] = None,
     path: str = "",
+    ignore_extra_fields: bool = False,
 ) -> T:
     if deserializers is None:
         deserializers = []
@@ -164,9 +165,12 @@ def from_dict(
         for field_name, v in value.items():
             field = clz.__dataclass_fields__.get(field_name)  # type: ignore
             if field is None:
-                raise TypeError(
-                    f"{clz.__module__}.{clz.__name__} has no attribute {field_name}."
-                )
+                if ignore_extra_fields:
+                    continue
+                else:
+                    raise TypeError(
+                        f"{clz.__module__}.{clz.__name__} has no attribute {field_name}."
+                    )
             remaining_fields.remove(field_name)
             kwargs[field_name] = from_dict(
                 clz=field.type,
@@ -200,6 +204,7 @@ def load(
     clz: Type[T],
     source: Union[str, Path],
     deserializers: Optional[List[Deserializer]] = None,
+    ignore_extra_fields: bool = False,
 ) -> T:
     if deserializers is None:
         deserializers = []
@@ -209,7 +214,7 @@ def load(
         state_dict = pyron.load(str(source))
     else:
         raise ValueError(f"source must be a `str` or `Path`, but found {source}")
-    return from_dict(clz, state_dict, deserializers)
+    return from_dict(clz, state_dict, deserializers, ignore_extra_fields=ignore_extra_fields)
 
 
 def dump(

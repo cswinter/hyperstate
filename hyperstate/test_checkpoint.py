@@ -94,3 +94,51 @@ def test_checkpoint() -> None:
                 value_loss_coeff=2,
             ),
         )
+
+
+@dataclass(eq=True)
+class MinConfig:
+    lr: float
+    steps: int
+
+
+@dataclass
+class MinState(Lazy):
+    step: int
+
+
+class MinHS(HyperState[MinConfig, MinState]):
+    def __init__(self, initial_config: str, checkpoint_dir: str):
+        super().__init__(MinConfig, MinState, initial_config, checkpoint_dir, ignore_extra_fields=True)
+
+    def initial_state(self) -> MinState:
+        return MinState(step=0)
+
+
+def test_ignore_extra_fields() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Write initial config file
+        config = """\
+        Config(
+            lr: 0.01,
+            steps: 100,
+            ppo: PPO(
+                cliprange: 0.3,
+                gamma: 0.999,
+                lambd: 0.95,
+                entcoeff: "step: 0.1@0 0.0@100",
+                value_loss_coeff: 2,
+            )
+        )
+        """
+        with open(tmpdir + "/config.ron", "w") as f:
+            f.write(textwrap.dedent(config))
+        checkpoint_dir = tmpdir + "/checkpoint"
+        os.mkdir(checkpoint_dir)
+        hs = HS(tmpdir + "/config.ron", checkpoint_dir)
+        hs.state.step = 50
+        hs.state.params.params += 0.1
+        hs.step()
+
+        # Restore from checkpoint
+        MinHS(tmpdir + "/config.ron", checkpoint_dir)

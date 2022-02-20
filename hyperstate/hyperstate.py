@@ -47,6 +47,7 @@ class HyperState(ABC, Generic[C, S]):
         initial_config: Union[str, Path],
         checkpoint_dir: Optional[Union[str, Path]] = None,
         overrides: Optional[List[str]] = None,
+        ignore_extra_fields: bool = False,
     ) -> None:
         """
         :param config_clz: The type of the config object.
@@ -54,6 +55,7 @@ class HyperState(ABC, Generic[C, S]):
         :param initial_config: Path to a config file or checkpoint.
         :param checkpoint_dir: Directory to store checkpoints. If the directory contains a valid checkpoint, the latest checkpoint will be loaded and `initial_config` will be ignored.
         :param overrides: A list of overrides to apply to the config. (Example: ["optimizer.lr=0.1"])
+        :param ignore_extra_fields: If `True`, ignore extra fields in the config file.
         """
         self.config_clz = config_clz
         self.state_clz = state_clz
@@ -86,6 +88,7 @@ class HyperState(ABC, Generic[C, S]):
                 config_path,
                 overrides=overrides or [],
                 allow_missing_version=state_path is not None,
+                ignore_extra_fields=ignore_extra_fields,
             )
         except Exception as e:
             raise RuntimeError(f"Failed to load config from {config_path}: {e}") from e
@@ -93,7 +96,7 @@ class HyperState(ABC, Generic[C, S]):
             self.state = self.initial_state()
         else:
             try:
-                self.state = _typed_load(state_clz, state_path, config=self.config)[0]
+                self.state = _typed_load(state_clz, state_path, config=self.config, ignore_extra_fields=ignore_extra_fields)[0]
             except Exception as e:
                 raise RuntimeError(
                     f"Failed to load state from {state_path}: {e}"
@@ -180,6 +183,7 @@ def _typed_load(
     overrides: Optional[List[str]] = None,
     config: Optional[Any] = None,
     allow_missing_version: bool = False,
+    ignore_extra_fields: bool = False,
 ) -> Tuple[T, Dict[str, Any]]:
     if overrides is not None:
         deserializers: List[Deserializer] = [OverridesDeserializer(overrides)]
@@ -194,7 +198,7 @@ def _typed_load(
         deserializers.append(lazy)
     elif source is None:
         source = "{}"
-    value = serde.load(clz, source, deserializers=deserializers)
+    value = serde.load(clz, source, deserializers=deserializers, ignore_extra_fields=ignore_extra_fields)
     if lazy is not None and len(lazy.lazy_fields) > 0:
         value._unloaded_lazy_fields = lazy.lazy_fields  # type: ignore
     return value, schedules.schedules
@@ -204,8 +208,9 @@ def loads(
     clz: Type[T],
     value: str,
     overrides: Optional[List[str]] = None,
+    ignore_extra_fields: bool = False,
 ) -> T:
-    return _typed_load(clz, value, overrides)[0]
+    return _typed_load(clz, value, overrides, ignore_extra_fields=ignore_extra_fields)[0]
 
 
 def load(
