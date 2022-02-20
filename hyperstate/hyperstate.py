@@ -96,7 +96,12 @@ class HyperState(ABC, Generic[C, S]):
             self.state = self.initial_state()
         else:
             try:
-                self.state = _typed_load(state_clz, state_path, config=self.config, ignore_extra_fields=ignore_extra_fields)[0]
+                self.state = _typed_load(
+                    state_clz,
+                    state_path,
+                    config=self.config,
+                    ignore_extra_fields=ignore_extra_fields,
+                )[0]
             except Exception as e:
                 raise RuntimeError(
                     f"Failed to load state from {state_path}: {e}"
@@ -198,7 +203,12 @@ def _typed_load(
         deserializers.append(lazy)
     elif source is None:
         source = "{}"
-    value = serde.load(clz, source, deserializers=deserializers, ignore_extra_fields=ignore_extra_fields)
+    value = serde.load(
+        clz,
+        source,
+        deserializers=deserializers,
+        ignore_extra_fields=ignore_extra_fields,
+    )
     if lazy is not None and len(lazy.lazy_fields) > 0:
         value._unloaded_lazy_fields = lazy.lazy_fields  # type: ignore
     return value, schedules.schedules
@@ -210,7 +220,9 @@ def loads(
     overrides: Optional[List[str]] = None,
     ignore_extra_fields: bool = False,
 ) -> T:
-    return _typed_load(clz, value, overrides, ignore_extra_fields=ignore_extra_fields)[0]
+    return _typed_load(clz, value, overrides, ignore_extra_fields=ignore_extra_fields)[
+        0
+    ]
 
 
 def load(

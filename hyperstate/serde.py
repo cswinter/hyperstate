@@ -214,7 +214,9 @@ def load(
         state_dict = pyron.load(str(source))
     else:
         raise ValueError(f"source must be a `str` or `Path`, but found {source}")
-    return from_dict(clz, state_dict, deserializers, ignore_extra_fields=ignore_extra_fields)
+    return from_dict(
+        clz, state_dict, deserializers, ignore_extra_fields=ignore_extra_fields
+    )
 
 
 def dump(

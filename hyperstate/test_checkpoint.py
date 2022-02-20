@@ -109,7 +109,13 @@ class MinState(Lazy):
 
 class MinHS(HyperState[MinConfig, MinState]):
     def __init__(self, initial_config: str, checkpoint_dir: str):
-        super().__init__(MinConfig, MinState, initial_config, checkpoint_dir, ignore_extra_fields=True)
+        super().__init__(
+            MinConfig,
+            MinState,
+            initial_config,
+            checkpoint_dir,
+            ignore_extra_fields=True,
+        )
 
     def initial_state(self) -> MinState:
         return MinState(step=0)
