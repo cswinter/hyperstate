@@ -37,6 +37,7 @@ class Field:
     type: Type
     default: Any
     has_default: bool
+    docstring: typing.Optional[str] = None
 
 
 @dataclass(eq=True, frozen=True)
@@ -54,6 +55,9 @@ class Struct:
 
     def __repr__(self) -> str:
         return f"{self.name}({', '.join(f'{k}={v}' for k, v in self.fields.items())})"
+
+    def __str__(self) -> str:
+        return self.name
 
 
 @dataclass(eq=True, frozen=True)
@@ -77,6 +81,17 @@ def materialize_type(clz: typing.Type[Any]) -> Type:
         return List(materialize_type(clz.__args__[0]))
     elif is_dataclass(clz):
         fields = {}
+        docstrings = {}
+        if clz.__doc__ is not None:
+            for line in clz.__doc__.splitlines():
+                line = line.strip()
+                if line.startswith(":param"):
+                    line = line[len(":param ") :].strip()
+                    if ":" in line:
+                        name, docs = line.split(":", 1)
+                        name = name.strip()
+                        docs = docs.strip()
+                        docstrings[name] = docs
         for name, field in clz.__dataclass_fields__.items():
             if field.default is not dataclasses.MISSING:
                 has_default = True
@@ -90,7 +105,11 @@ def materialize_type(clz: typing.Type[Any]) -> Type:
             if isinstance(default, enum.Enum):
                 default = default.value
             fields[name] = Field(
-                name, materialize_type(field.type), default, has_default
+                name,
+                materialize_type(field.type),
+                default,
+                has_default,
+                docstrings.get(name),
             )
         from hyperstate.schema.versioned import Versioned
 
