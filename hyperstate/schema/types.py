@@ -1,4 +1,4 @@
-from typing import TypeVar, Any, Union
+from typing import Any, TypeVar, Union
 from enum import EnumMeta
 import enum
 import typing
@@ -12,7 +12,7 @@ import pyron
 T = TypeVar("T")
 
 
-Type = Union["Primitive", "List", "Struct", "Option", "Enum"]
+Type = Union["Primitive", "List", "Struct", "Option", "Enum", "Literal", "Nothing"]
 
 
 @dataclass(eq=True, frozen=True)
@@ -22,6 +22,13 @@ class Primitive:
     def __repr__(self) -> str:
         return self.type
 
+    def is_subtype(self, other: Type) -> bool:
+        return (isinstance(other, Primitive) and other.type == self.type) or (
+            isinstance(other, Option) and self.is_subtype(other.type)
+        ) or (
+            self.type == "int" and isinstance(other, Primitive) and other.type == "float"
+        )
+
 
 @dataclass(eq=True, frozen=True)
 class List:
@@ -29,6 +36,12 @@ class List:
 
     def __repr__(self) -> str:
         return f"List[{self.inner}]"
+
+    def is_subtype(self, other: Type) -> bool:
+        return self == other or (
+            isinstance(other, Option) and self.is_subtype(other.type)
+        )
+
 
 
 @dataclass(eq=True, frozen=True)
@@ -45,8 +58,46 @@ class Enum:
     name: str
     variants: typing.Dict[str, typing.Union[str, int]]
 
+    def is_subtype(self, other: Type) -> bool:
+        return (
+            isinstance(other, Enum)
+            and other.name == self.name
+            and all(
+                k in other.variants and other.variants[k] == v
+                for k, v in self.variants.items()
+            )
+        ) or (
+            isinstance(other, Option) and self.is_subtype(other.type)
+        )
 
-# TODO: allow name to differ in equality
+
+
+@dataclass(eq=True, frozen=True)
+class Literal:
+    allowed_values: typing.Set[Any]
+
+    def is_subtype(self, other: Type) -> bool:
+        return (
+            (
+                isinstance(other, Literal)
+                and all(v in other.allowed_values for v in self.allowed_values)
+            )
+            or (
+                isinstance(other, Primitive)
+                and other.type == "str"
+                and all(isinstance(v, str) for v in self.allowed_values)
+            )
+            or (
+                isinstance(other, Primitive)
+                and other.type == "int"
+                and all(isinstance(v, int) for v in self.allowed_values)
+            )
+        ) or (
+            isinstance(other, Option) and self.is_subtype(other.type)
+        )
+
+
+
 @dataclass(eq=True, frozen=True)
 class Struct:
     name: str
@@ -59,6 +110,15 @@ class Struct:
     def __str__(self) -> str:
         return self.name
 
+    def is_subtype(self, other: Type) -> bool:
+        return isinstance(other, Struct) and all(
+            k in other.fields and other.fields[k].type.is_subtype(self.fields[k].type)
+            for k in self.fields
+        ) or (
+            isinstance(other, Option) and self.is_subtype(other.type)
+        )
+
+
 
 @dataclass(eq=True, frozen=True)
 class Option:
@@ -66,6 +126,15 @@ class Option:
 
     def __repr__(self) -> str:
         return f"Optional[{self.type}]"
+
+    def is_subtype(self, other: Type) -> bool:
+        return isinstance(other, Option) and other.type.is_subtype(self.type)
+
+
+@dataclass(eq=True, frozen=True)
+class Nothing:
+    def is_subtype(self, other: Type) -> bool:
+        return True
 
 
 def materialize_type(clz: typing.Type[Any]) -> Type:
@@ -125,6 +194,8 @@ def materialize_type(clz: typing.Type[Any]) -> Type:
         for name, value in clz.__members__.items():
             variants[name] = value.value
         return Enum(clz.__name__, variants)
+    elif typing.get_origin(clz) == typing.Literal:
+        return Literal(set(typing.get_args(clz)))
     else:
         raise ValueError(f"Unsupported type: {clz}")
 
@@ -161,6 +232,8 @@ def schema_from_namedtuple(schema: Any) -> Type:
         for name, value in schema.variants.items():
             variants[name] = value
         return Enum(schema.name, variants)
+    elif clz_name == "Literal":
+        return Literal(set(schema.allowed_values))
     else:
         raise ValueError(f"Unsupported type: {clz_name}")
 

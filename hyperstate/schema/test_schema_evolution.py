@@ -1,11 +1,13 @@
 from dataclasses import dataclass
 import enum
 from typing import Any, Dict, List, Optional
+import typing
 import tempfile
 from hyperstate.hyperstate import dumps, loads
 from hyperstate.schema.rewrite_rule import (
     AddDefault,
     ChangeDefault,
+    CheckValue,
     DeleteField,
     MapFieldValue,
     RenameField,
@@ -36,6 +38,7 @@ from hyperstate.schema.types import (
     Type,
     Primitive,
     Option,
+    Literal,
 )
 from hyperstate.schema.versioned import Versioned
 
@@ -158,7 +161,7 @@ class ConfigV3(Versioned):
     lr: float
     batch_size: int
     epochs: int
-    optimizer: str = "adam"
+    optimizer: typing.Literal["adam", "sgd"] = "adam"
 
     @classmethod
     def version(clz) -> int:
@@ -168,6 +171,7 @@ class ConfigV3(Versioned):
     def upgrade_rules(clz) -> Dict[int, List[RewriteRule]]:
         return {
             2: [
+                CheckValue(field=("optimizer",), allowed_values={"adam", "sgd"}),
                 ChangeDefault(field=("optimizer",), new_default="adam"),
                 RenameField(old_field=("learning_rate",), new_field=("lr",)),
             ],
@@ -179,10 +183,16 @@ def test_config_v2_to_v3() -> None:
         ConfigV2Info,
         ConfigV3,
         [
+            TypeChanged(
+                field=("optimizer",),
+                old=Primitive("str"),
+                new=Literal(allowed_values={"adam", "sgd"}),
+            ),
             DefaultValueChanged(field=("optimizer",), old="sgd", new="adam"),
             FieldRenamed(field=("learning_rate",), new_name=("lr",)),
         ],
         [
+            CheckValue(field=("optimizer",), allowed_values={"adam", "sgd"}),
             ChangeDefault(field=("optimizer",), new_default="adam"),
             RenameField(old_field=("learning_rate",), new_field=("lr",)),
         ],
@@ -209,7 +219,7 @@ def test_config_v2_to_v3() -> None:
 class OptimizerConfig:
     lr: float
     batch_size: int
-    optimizer: str = "adam"
+    optimizer: typing.Literal["adam", "sgd"] = "adam"
 
 
 class TaskType(enum.Enum):
@@ -511,6 +521,11 @@ def automatic_upgrade(old: Any, new: Any) -> None:
             return {
                 old.version(): autofixes,
             }
+
+    checker = SchemaChecker(old_type, NewWithUpgradeRules, perform_upgrade=True)
+    if checker.severity() >= Severity.WARN:
+        checker.print_report()
+    assert checker.severity() == Severity.INFO
 
     serialized = dumps(old)
     new_with_upgrade_rules = loads(NewWithUpgradeRules, serialized)

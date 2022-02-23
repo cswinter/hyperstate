@@ -18,6 +18,8 @@ from hyperstate.schema.schema_change import (
     FieldAdded,
     FieldRemoved,
     FieldRenamed,
+    LiteralValuesAdded,
+    LiteralValuesRemoved,
     SchemaChange,
     Severity,
     TypeChanged,
@@ -176,7 +178,6 @@ class SchemaChecker:
                                 field.has_default,
                             )
                         )
-
         elif isinstance(old, t.Option):
             assert isinstance(new, t.Option)
             self._find_changes(old.type, new.type, path + ["?"])
@@ -208,6 +209,24 @@ class SchemaChecker:
                     self.changes.append(
                         EnumVariantRemoved(tuple(path), new.name, name, value)
                     )
+        elif isinstance(old, t.Literal):
+            assert isinstance(new, t.Literal)
+            new_values = new.allowed_values - old.allowed_values
+            if new_values:
+                self.changes.append(
+                    LiteralValuesAdded(
+                        tuple(path),
+                        new_values,
+                    )
+                )
+            removed_values = old.allowed_values - new.allowed_values
+            if removed_values:
+                self.changes.append(
+                    LiteralValuesRemoved(
+                        tuple(path),
+                        removed_values,
+                    )
+                )
         else:
             raise ValueError(f"Field {'.'.join(path)} has unsupported type {type(old)}")
 
@@ -250,7 +269,7 @@ class SchemaChecker:
             added: FieldAdded, removed: FieldRemoved
         ) -> Optional[float]:
             if (
-                removed.type == added.type
+                removed.type.is_subtype(added.type)
                 and removed.has_default == added.has_default
                 and removed.default == added.default
             ):

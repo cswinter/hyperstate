@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, replace
-from typing import List, Optional, Sequence, Tuple, Dict, Any, Callable
+from typing import List, Optional, Sequence, Set, Tuple, Dict, Any, Callable
 
 from hyperstate.schema import types
 
@@ -60,7 +60,24 @@ class MapFieldValue(RewriteRule):
         return state_dict
 
     def apply_to_schema(self, schema: types.Type) -> None:
-        raise NotImplementedError
+        field = _remove_schema(schema, self.field)
+        assert field is not None, f"Field {self.field} not found in schema"
+        if isinstance(field.type, types.Enum):
+            _insert_schema(
+                schema,
+                self.field,
+                replace(
+                    field,
+                    type=replace(
+                        field.type,
+                        variants={
+                            k: self.map_fn(v) for k, v in field.type.variants.items()
+                        },
+                    ),
+                ),
+            )
+        else:
+            _insert_schema(schema, self.field, field)
 
 
 @dataclass
@@ -94,8 +111,64 @@ class AddDefault(RewriteRule):
 
     def apply_to_schema(self, schema: types.Type) -> None:
         field = _remove_schema(schema, self.field)
+        if field is None:
+            field = types.Field(
+                name=self.field[-1],
+                type=types.Nothing(),
+                default=None,
+                has_default=False,
+            )
+        else:
+            field = replace(field, default=self.default, has_default=True)
+        _insert_schema(schema, self.field, field)
+
+
+@dataclass
+class CheckValue(RewriteRule):
+    field: Sequence[str]
+    allowed_values: Set[Any]
+
+    def apply(self, state_dict: Any) -> Any:
+        value, present = _get(state_dict, self.field)
+        if present and value not in self.allowed_values:
+            raise ValueError(
+                f"Value {value.__repr__()} is deprecated for field {self.field}. Allowed values: [{', '.join(v.__repr__() for v in self.allowed_values)}]"
+            )
+        return state_dict
+
+    def apply_to_schema(self, schema: types.Type) -> None:
+        field = _remove_schema(schema, self.field)
         assert field is not None, f"Field {self.field} not found in schema"
-        _insert_schema(schema, self.field, replace(field, default=self.default))
+        _insert_schema(
+            schema, self.field, replace(field, type=types.Literal(self.allowed_values))
+        )
+
+
+@dataclass
+class RejectValues(RewriteRule):
+    field: Sequence[str]
+    disallowed_values: Set[Any]
+
+    def apply(self, state_dict: Any) -> Any:
+        value, present = _remove(state_dict, self.field)
+        if present and value in self.disallowed_values:
+            raise ValueError(
+                f"Value {value.__repr__()} is deprecated for field {self.field}."
+            )
+        return state_dict
+
+    def apply_to_schema(self, schema: types.Type) -> None:
+        field = _remove_schema(schema, self.field)
+        assert field is not None, f"Field {self.field} not found in schema"
+        assert isinstance(schema, types.Literal)
+        _insert_schema(
+            schema,
+            self.field,
+            replace(
+                field,
+                type=types.Literal(schema.allowed_values - self.disallowed_values),
+            ),
+        )
 
 
 def _remove(state_dict: Dict[str, Any], path: Sequence[str]) -> Tuple[Any, bool]:
@@ -109,6 +182,17 @@ def _remove(state_dict: Dict[str, Any], path: Sequence[str]) -> Tuple[Any, bool]
     value = state_dict[path[-1]]
     del state_dict[path[-1]]
     return value, True
+
+
+def _get(state_dict: Dict[str, Any], path: Sequence[str]) -> Tuple[Any, bool]:
+    assert len(path) > 0
+    for field in path[:-1]:
+        if field not in state_dict:
+            return None, False
+        state_dict = state_dict[field]
+    if path[-1] not in state_dict:
+        return None, False
+    return state_dict[path[-1]], True
 
 
 def _insert(state_dict: Dict[str, Any], path: Sequence[str], value: Any) -> None:
@@ -142,6 +226,13 @@ def _insert_schema(schema: types.Type, path: Sequence[str], field: types.Field) 
     for field_name in path[:-1]:
         if not isinstance(schema, types.Struct):
             return
+        if field_name not in schema.fields:
+            schema.fields[field_name] = types.Field(
+                name=field_name,
+                type=types.Struct(name="", fields={}),
+                has_default=False,
+                default=None,
+            )
         schema = schema.fields[field_name].type
     if not isinstance(schema, types.Struct):
         return

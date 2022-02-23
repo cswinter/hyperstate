@@ -6,6 +6,8 @@ from dataclasses import dataclass
 
 from . import types as t
 from .rewrite_rule import (
+    CheckValue,
+    RejectValues,
     RewriteRule,
     DeleteField,
     RenameField,
@@ -148,14 +150,7 @@ class TypeChanged(SchemaChange):
     new: t.Type
 
     def severity(self) -> Severity:
-        if isinstance(self.new, t.Option) and self.new.type == self.old:
-            return Severity.INFO
-        elif (
-            isinstance(self.old, t.Primitive)
-            and isinstance(self.new, t.Primitive)
-            and self.old.type == "int"
-            and self.new.type == "float"
-        ):
+        if self.old.is_subtype(self.new):
             return Severity.INFO
         return super().severity()
 
@@ -174,6 +169,8 @@ class TypeChanged(SchemaChange):
             return MapFieldValue(
                 self.field, lambda x: int(x), rendered="lambda x: int(x)"
             )
+        elif isinstance(self.new, t.Literal):
+            return CheckValue(self.field, self.new.allowed_values)
         else:
             return None
 
@@ -230,3 +227,34 @@ class EnumVariantRenamed(SchemaChange):
 
     def diagnostic(self) -> str:
         return f"variant {self.new_variant_name} of {self.enum_name} renamed to {self.new_variant_name}"
+
+
+@dataclass(eq=True, frozen=True)
+class LiteralValuesAdded(SchemaChange):
+    values: typing.Set[typing.Union[str, int]]
+
+    def severity(self) -> Severity:
+        return Severity.INFO
+
+    def diagnostic(self) -> str:
+        if len(self.values) == 1:
+            return f"value {next(iter(self.values))} added to literal type {self.field_name}"
+        else:
+            return f"values {', '.join(x.__repr__() for x in self.values)} added to literal type {self.field_name}"
+
+
+@dataclass(eq=True, frozen=True)
+class LiteralValuesRemoved(SchemaChange):
+    values: typing.Set[typing.Union[str, int]]
+
+    def severity(self) -> Severity:
+        return Severity.WARN
+
+    def diagnostic(self) -> str:
+        if len(self.values) == 1:
+            return f"value {next(iter(self.values))} removed from literal type {self.field_name}"
+        else:
+            return f"values {', '.join(x.__repr__() for x in self.values)} removed from literal type {self.field_name}"
+
+    def proposed_fix(self) -> typing.Optional[RewriteRule]:
+        return RejectValues(self.field, disallowed_values=self.values)

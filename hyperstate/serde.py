@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import (
     List,
     Any,
+    Literal,
     Optional,
     Type,
     TypeVar,
@@ -15,6 +16,7 @@ from typing import (
 )
 import inspect
 from dataclasses import MISSING, is_dataclass
+import typing
 
 import pyron
 
@@ -192,8 +194,11 @@ def from_dict(
             raise TypeError(f"Failed to initialize {data}: {e}")
     elif isinstance(clz, EnumMeta):
         return clz(value)
-    # elif isinstance(value, clz):
-    #    return value
+    elif typing.get_origin(clz) == Literal:
+        args = typing.get_args(clz)
+        if value not in args:
+            raise ValueError(f"{value} must be one of {args}")
+        return value # type: ignore
     raise TypeError(
         f"Failed to deserialize {data}: {value} is not a {_qualified_name(clz)}"
     )
