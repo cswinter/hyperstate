@@ -1,4 +1,4 @@
-from typing import Any, TypeVar, Union
+from typing import Any, Sequence, TypeVar, Union
 from enum import EnumMeta
 import enum
 import typing
@@ -109,6 +109,17 @@ class Struct:
 
     def __str__(self) -> str:
         return self.name
+
+    def find_field(self, path: Sequence[str]) -> typing.Optional[Field]:
+        schema = self
+        for segment in path[:-1]:
+            if segment not in self.fields:
+                return None
+            _schema = schema.fields[segment].type
+            if not isinstance(_schema, Struct):
+                return None
+            schema = _schema
+        return schema.fields.get(path[-1])
 
     def is_subtype(self, other: Type) -> bool:
         return (

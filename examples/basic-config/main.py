@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 import argparse
 import hyperstate
+from hyperstate.hyperstate import FieldNotFoundError
+import click
 
 
 @dataclass
@@ -55,5 +57,11 @@ if __name__ == "__main__":
     if args.hps_help is not None:
         hyperstate.help(Config, args.hps_help)
     else:
-        config = hyperstate.load(Config, file=args.config, overrides=args.hps)
-        print(config)
+        try:
+            config = hyperstate.load(Config, file=args.config, overrides=args.hps)
+            print(config)
+        except FieldNotFoundError as e:
+            print(click.style("ERROR", fg="red") + ": " + str(e))
+            print()
+            print("Most similar fields:")
+            hyperstate.help(Config, e.field_name)

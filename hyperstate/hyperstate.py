@@ -15,6 +15,7 @@ from typing import (
     Union,
 )
 from dataclasses import MISSING, dataclass
+from hyperstate.schema.types import Struct, materialize_type
 
 from hyperstate.schema.versioned import (
     VersionedSerializer,
@@ -142,6 +143,12 @@ class HyperState(ABC, Generic[C, S]):
         return asdict(self.config, serializers=[VersionedSerializer()])
 
 
+class FieldNotFoundError(Exception):
+    def __init__(self, msg: str, field_name: str) -> None:
+        super().__init__(msg)
+        self.field_name = field_name
+
+
 def _apply_schedules(state: Any, config: Any, schedules: Dict[str, Any]) -> None:
     for field_name, schedule in schedules.items():
         if isinstance(schedule, Schedule):
@@ -196,6 +203,15 @@ def _typed_load(
 ) -> Tuple[T, Dict[str, Any]]:
     if overrides is not None:
         deserializers: List[Deserializer] = [OverridesDeserializer(overrides)]
+        schema = materialize_type(clz)
+        assert isinstance(schema, Struct)
+        for override in overrides:
+            key, _ = override.split("=", maxsplit=1)
+            path = key.split(".")
+            if schema.find_field(path) is None:
+                raise FieldNotFoundError(
+                    f"Field {key} not found in {clz.__name__}", path[-1]
+                )
     else:
         deserializers = []
     schedules = ScheduleDeserializer()
