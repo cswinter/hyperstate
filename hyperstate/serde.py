@@ -200,38 +200,54 @@ def from_dict(
     )
 
 
-def load(
+def loads(
     clz: Type[T],
-    source: Union[str, Path],
+    value: str,
     deserializers: Optional[List[Deserializer]] = None,
     ignore_extra_fields: bool = False,
 ) -> T:
     if deserializers is None:
         deserializers = []
-    if isinstance(source, str):
-        state_dict = pyron.loads(source)
-    elif isinstance(source, Path):
-        state_dict = pyron.load(str(source))
-    else:
-        raise ValueError(f"source must be a `str` or `Path`, but found {source}")
     return from_dict(
-        clz, state_dict, deserializers, ignore_extra_fields=ignore_extra_fields
+        clz, pyron.loads(value), deserializers, ignore_extra_fields=ignore_extra_fields
+    )
+
+
+def load(
+    clz: Type[T],
+    path: Union[str, Path],
+    deserializers: Optional[List[Deserializer]] = None,
+    ignore_extra_fields: bool = False,
+) -> T:
+    if deserializers is None:
+        deserializers = []
+    return from_dict(
+        clz,
+        pyron.load(str(path)),
+        deserializers,
+        ignore_extra_fields=ignore_extra_fields,
     )
 
 
 def dump(
     obj: Any,
-    path: Optional[Path] = None,
+    path: Union[str, Path],
+    serializers: Optional[List[Serializer]] = None,
+) -> str:
+    serialized = dumps(obj, serializers)
+    with open(path, "w") as f:
+        f.write(serialized)
+    return serialized
+
+
+def dumps(
+    obj: Any,
     serializers: Optional[List[Serializer]] = None,
 ) -> str:
     if serializers is None:
         serializers = []
     state_dict = asdict(obj, named_tuples=True, serializers=serializers)
-    serialized = pyron.to_string(state_dict)
-    if path:
-        with open(path, "w") as f:
-            f.write(serialized)
-    return serialized
+    return pyron.to_string(state_dict)
 
 
 def is_optional(clz: Type[Any]) -> bool:

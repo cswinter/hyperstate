@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import enum
 from typing import Any, Dict, List, Optional
 import tempfile
-from hyperstate.hyperstate import dump, loads
+from hyperstate.hyperstate import dumps, loads
 from hyperstate.schema.rewrite_rule import (
     AddDefault,
     ChangeDefault,
@@ -460,7 +460,7 @@ def test_config_v5_to_v6() -> None:
 
 def test_serde_upgrade() -> None:
     config_v2 = ConfigV2Info(steps=1, learning_rate=0.1, batch_size=32, epochs=10)
-    serialized = dump(config_v2)
+    serialized = dumps(config_v2)
     config_v3 = loads(ConfigV3, serialized)
     assert config_v3 == ConfigV3(
         steps=1, lr=0.1, batch_size=32, epochs=10, optimizer="sgd"
@@ -512,6 +512,6 @@ def automatic_upgrade(old: Any, new: Any) -> None:
                 old.version(): autofixes,
             }
 
-    serialized = dump(old)
+    serialized = dumps(old)
     new_with_upgrade_rules = loads(NewWithUpgradeRules, serialized)
     assert new_with_upgrade_rules == NewWithUpgradeRules(**new.__dict__)

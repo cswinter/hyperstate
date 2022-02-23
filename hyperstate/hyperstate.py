@@ -85,7 +85,7 @@ class HyperState(ABC, Generic[C, S]):
         try:
             self.config, self.schedules = _typed_load(
                 config_clz,
-                config_path,
+                path=config_path,
                 overrides=overrides or [],
                 allow_missing_version=state_path is not None,
                 ignore_extra_fields=ignore_extra_fields,
@@ -98,7 +98,7 @@ class HyperState(ABC, Generic[C, S]):
             try:
                 self.state = _typed_load(
                     state_clz,
-                    state_path,
+                    path=state_path,
                     config=self.config,
                     ignore_extra_fields=ignore_extra_fields,
                 )[0]
@@ -166,25 +166,29 @@ def _typed_dump(
         serializers.append(ScheduleSerializer(schedules))
     if elide_defaults:
         serializers.append(ElideDefaults())
-    result = serde.dump(obj, path, serializers=serializers)
-    if path is not None:
+    if path is None:
+        return serde.dumps(obj, serializers=serializers)
+    else:
+        result = serde.dump(obj, path, serializers=serializers)
         for blobpath, blob in lazy_serializer.blobs.items():
             with open(path.parent / blobpath, "wb") as f:
                 f.write(blob)
-    return result
+        return result
 
 
-def dump(obj: Any, path: Optional[Path] = None, elide_defaults: bool = False) -> str:
-    return _typed_dump(obj, path, elide_defaults=elide_defaults)
+def dump(obj: Any, path: Path, elide_defaults: bool = False) -> None:
+    _typed_dump(obj, path, elide_defaults=elide_defaults)
 
 
 def dumps(obj: Any, elide_defaults: bool = False) -> str:
-    return dump(obj, elide_defaults=elide_defaults)
+    return _typed_dump(obj, elide_defaults=elide_defaults)
 
 
 def _typed_load(
     clz: Type[T],
-    source: Union[str, Path, None],
+    *,
+    path: Optional[Path] = None,
+    source: Optional[str] = None,
     overrides: Optional[List[str]] = None,
     config: Optional[Any] = None,
     allow_missing_version: bool = False,
@@ -198,17 +202,23 @@ def _typed_load(
     deserializers.append(schedules)
     deserializers.append(VersionedDeserializer(allow_missing_version))
     lazy = None
-    if isinstance(source, Path):
-        lazy = LazyDeserializer(config, source.absolute().parent)
+    assert path is None or source is None, "cannot specify both path and source"
+    if path is not None:
+        lazy = LazyDeserializer(config, path.absolute().parent)
         deserializers.append(lazy)
-    elif source is None:
-        source = "{}"
-    value = serde.load(
-        clz,
-        source,
-        deserializers=deserializers,
-        ignore_extra_fields=ignore_extra_fields,
-    )
+        value = serde.load(
+            clz,
+            path,
+            deserializers=deserializers,
+            ignore_extra_fields=ignore_extra_fields,
+        )
+    else:
+        value = serde.loads(
+            clz,
+            source or "{}",
+            deserializers=deserializers,
+            ignore_extra_fields=ignore_extra_fields,
+        )
     if lazy is not None and len(lazy.lazy_fields) > 0:
         value._unloaded_lazy_fields = lazy.lazy_fields  # type: ignore
     return value, schedules.schedules
@@ -220,9 +230,9 @@ def loads(
     overrides: Optional[List[str]] = None,
     ignore_extra_fields: bool = False,
 ) -> T:
-    return _typed_load(clz, value, overrides, ignore_extra_fields=ignore_extra_fields)[
-        0
-    ]
+    return _typed_load(
+        clz, source=value, overrides=overrides, ignore_extra_fields=ignore_extra_fields
+    )[0]
 
 
 def load(
@@ -232,7 +242,7 @@ def load(
 ) -> T:
     if isinstance(path, str):
         path = Path(path)
-    return _typed_load(clz, path, overrides)[0]
+    return _typed_load(clz, path=path, overrides=overrides)[0]
 
 
 def find_latest_checkpoint(dir: Path) -> Optional[Path]:
