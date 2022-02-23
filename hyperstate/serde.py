@@ -198,7 +198,7 @@ def from_dict(
         args = typing.get_args(clz)
         if value not in args:
             raise ValueError(f"{value} must be one of {args}")
-        return value # type: ignore
+        return value  # type: ignore
     raise TypeError(
         f"Failed to deserialize {data}: {value} is not a {_qualified_name(clz)}"
     )

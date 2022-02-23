@@ -23,10 +23,14 @@ class Primitive:
         return self.type
 
     def is_subtype(self, other: Type) -> bool:
-        return (isinstance(other, Primitive) and other.type == self.type) or (
-            isinstance(other, Option) and self.is_subtype(other.type)
-        ) or (
-            self.type == "int" and isinstance(other, Primitive) and other.type == "float"
+        return (
+            (isinstance(other, Primitive) and other.type == self.type)
+            or (isinstance(other, Option) and self.is_subtype(other.type))
+            or (
+                self.type == "int"
+                and isinstance(other, Primitive)
+                and other.type == "float"
+            )
         )
 
 
@@ -41,7 +45,6 @@ class List:
         return self == other or (
             isinstance(other, Option) and self.is_subtype(other.type)
         )
-
 
 
 @dataclass(eq=True, frozen=True)
@@ -66,10 +69,7 @@ class Enum:
                 k in other.variants and other.variants[k] == v
                 for k, v in self.variants.items()
             )
-        ) or (
-            isinstance(other, Option) and self.is_subtype(other.type)
-        )
-
+        ) or (isinstance(other, Option) and self.is_subtype(other.type))
 
 
 @dataclass(eq=True, frozen=True)
@@ -92,10 +92,7 @@ class Literal:
                 and other.type == "int"
                 and all(isinstance(v, int) for v in self.allowed_values)
             )
-        ) or (
-            isinstance(other, Option) and self.is_subtype(other.type)
-        )
-
+        ) or (isinstance(other, Option) and self.is_subtype(other.type))
 
 
 @dataclass(eq=True, frozen=True)
@@ -111,13 +108,15 @@ class Struct:
         return self.name
 
     def is_subtype(self, other: Type) -> bool:
-        return isinstance(other, Struct) and all(
-            k in other.fields and other.fields[k].type.is_subtype(self.fields[k].type)
-            for k in self.fields
-        ) or (
-            isinstance(other, Option) and self.is_subtype(other.type)
+        return (
+            isinstance(other, Struct)
+            and all(
+                k in other.fields
+                and other.fields[k].type.is_subtype(self.fields[k].type)
+                for k in self.fields
+            )
+            or (isinstance(other, Option) and self.is_subtype(other.type))
         )
-
 
 
 @dataclass(eq=True, frozen=True)
