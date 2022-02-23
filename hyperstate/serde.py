@@ -4,7 +4,6 @@ from enum import Enum, EnumMeta
 from os import name
 from pathlib import Path
 from typing import (
-    Callable,
     List,
     Any,
     Optional,
@@ -53,13 +52,13 @@ def asdict(
     value: Any,
     named_tuples: bool = False,
     serializers: Optional[List[Serializer]] = None,
-    path: str = "",
+    file: str = "",
 ) -> Any:
     if serializers is None:
         serializers = []
 
     for serializer in serializers:
-        _value, _ok = serializer.serialize(value, path, named_tuples)
+        _value, _ok = serializer.serialize(value, file, named_tuples)
         if _ok:
             value = _value
     if is_dataclass(value):
@@ -68,12 +67,12 @@ def asdict(
                 value=getattr(value, field_name),
                 named_tuples=named_tuples,
                 serializers=serializers,
-                path=field_name if path == "" else f"{path}.{field_name}",
+                file=field_name if file == "" else f"{file}.{field_name}",
             )
             for field_name in value.__dataclass_fields__
         }
         for serializer in serializers:
-            serializer.modify_dataclass_attrs(value, attrs, path)
+            serializer.modify_dataclass_attrs(value, attrs, file)
         if named_tuples:
             return namedtuple(value.__class__.__name__, attrs.keys())(**attrs)
         else:
@@ -99,7 +98,7 @@ def from_dict(
     clz: Type[T],
     value: Any,
     deserializers: Optional[List[Deserializer]] = None,
-    path: str = "",
+    data: str = "",
     ignore_extra_fields: bool = False,
 ) -> T:
     if deserializers is None:
@@ -113,7 +112,7 @@ def from_dict(
 
     ret = False
     for deserializer in deserializers:
-        _value, ok, _ret = deserializer.deserialize(clz, value, path)
+        _value, ok, _ret = deserializer.deserialize(clz, value, data)
         if ok:
             value = _value
         ret = ret or _ret
@@ -134,7 +133,7 @@ def from_dict(
         if int(f) == f:
             return int(f)  # type: ignore
         else:
-            raise ValueError(f"Expected {path} to be an int, got {value}")
+            raise ValueError(f"Expected {data} to be an int, got {value}")
     elif (
         hasattr(clz, "__args__")
         and len(clz.__args__) == 1  # type: ignore
@@ -176,7 +175,7 @@ def from_dict(
                 clz=field.type,
                 value=v,
                 deserializers=deserializers,
-                path=f"{path}.{field_name}" if path else field_name,
+                data=f"{data}.{field_name}" if data else field_name,
             )
         for field_name in remaining_fields:
             field = clz.__dataclass_fields__.get(field_name)  # type: ignore
@@ -190,32 +189,32 @@ def from_dict(
             instance = clz(**kwargs)  # type: ignore
             return instance
         except TypeError as e:
-            raise TypeError(f"Failed to initialize {path}: {e}")
+            raise TypeError(f"Failed to initialize {data}: {e}")
     elif isinstance(clz, EnumMeta):
         return clz(value)
     # elif isinstance(value, clz):
     #    return value
     raise TypeError(
-        f"Failed to deserialize {path}: {value} is not a {_qualified_name(clz)}"
+        f"Failed to deserialize {data}: {value} is not a {_qualified_name(clz)}"
     )
 
 
 def loads(
     clz: Type[T],
-    value: str,
+    data: str,
     deserializers: Optional[List[Deserializer]] = None,
     ignore_extra_fields: bool = False,
 ) -> T:
     if deserializers is None:
         deserializers = []
     return from_dict(
-        clz, pyron.loads(value), deserializers, ignore_extra_fields=ignore_extra_fields
+        clz, pyron.loads(data), deserializers, ignore_extra_fields=ignore_extra_fields
     )
 
 
 def load(
     clz: Type[T],
-    path: Union[str, Path],
+    file: Union[str, Path],
     deserializers: Optional[List[Deserializer]] = None,
     ignore_extra_fields: bool = False,
 ) -> T:
@@ -223,7 +222,7 @@ def load(
         deserializers = []
     return from_dict(
         clz,
-        pyron.load(str(path)),
+        pyron.load(str(file)),
         deserializers,
         ignore_extra_fields=ignore_extra_fields,
     )
@@ -231,11 +230,11 @@ def load(
 
 def dump(
     obj: Any,
-    path: Union[str, Path],
+    file: Union[str, Path],
     serializers: Optional[List[Serializer]] = None,
 ) -> str:
     serialized = dumps(obj, serializers)
-    with open(path, "w") as f:
+    with open(file, "w") as f:
         f.write(serialized)
     return serialized
 

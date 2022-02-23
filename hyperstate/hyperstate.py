@@ -3,9 +3,7 @@ import shutil
 from abc import ABC, abstractmethod
 from pathlib import Path
 import tempfile
-import importlib
 from typing import (
-    Callable,
     Generic,
     List,
     Any,
@@ -85,7 +83,7 @@ class HyperState(ABC, Generic[C, S]):
         try:
             self.config, self.schedules = _typed_load(
                 config_clz,
-                path=config_path,
+                file=config_path,
                 overrides=overrides or [],
                 allow_missing_version=state_path is not None,
                 ignore_extra_fields=ignore_extra_fields,
@@ -98,7 +96,7 @@ class HyperState(ABC, Generic[C, S]):
             try:
                 self.state = _typed_load(
                     state_clz,
-                    path=state_path,
+                    file=state_path,
                     config=self.config,
                     ignore_extra_fields=ignore_extra_fields,
                 )[0]
@@ -155,7 +153,7 @@ def _apply_schedules(state: Any, config: Any, schedules: Dict[str, Any]) -> None
 
 def _typed_dump(
     obj: Any,
-    path: Optional[Path] = None,
+    file: Union[Path, None] = None,
     schedules: Optional[Dict[str, Any]] = None,
     elide_defaults: bool = False,
 ) -> str:
@@ -166,18 +164,20 @@ def _typed_dump(
         serializers.append(ScheduleSerializer(schedules))
     if elide_defaults:
         serializers.append(ElideDefaults())
-    if path is None:
+    if file is None:
         return serde.dumps(obj, serializers=serializers)
     else:
-        result = serde.dump(obj, path, serializers=serializers)
+        result = serde.dump(obj, file, serializers=serializers)
         for blobpath, blob in lazy_serializer.blobs.items():
-            with open(path.parent / blobpath, "wb") as f:
+            with open(file.parent / blobpath, "wb") as f:
                 f.write(blob)
         return result
 
 
-def dump(obj: Any, path: Path, elide_defaults: bool = False) -> None:
-    _typed_dump(obj, path, elide_defaults=elide_defaults)
+def dump(obj: Any, file: Union[Path, str], elide_defaults: bool = False) -> None:
+    if isinstance(file, str):
+        file = Path(file)
+    _typed_dump(obj, file, elide_defaults=elide_defaults)
 
 
 def dumps(obj: Any, elide_defaults: bool = False) -> str:
@@ -187,8 +187,8 @@ def dumps(obj: Any, elide_defaults: bool = False) -> str:
 def _typed_load(
     clz: Type[T],
     *,
-    path: Optional[Path] = None,
-    source: Optional[str] = None,
+    file: Optional[Path] = None,
+    data: Optional[str] = None,
     overrides: Optional[List[str]] = None,
     config: Optional[Any] = None,
     allow_missing_version: bool = False,
@@ -202,20 +202,20 @@ def _typed_load(
     deserializers.append(schedules)
     deserializers.append(VersionedDeserializer(allow_missing_version))
     lazy = None
-    assert path is None or source is None, "cannot specify both path and source"
-    if path is not None:
-        lazy = LazyDeserializer(config, path.absolute().parent)
+    assert file is None or data is None, "cannot specify both file and source"
+    if file is not None:
+        lazy = LazyDeserializer(config, file.absolute().parent)
         deserializers.append(lazy)
         value = serde.load(
             clz,
-            path,
+            file,
             deserializers=deserializers,
             ignore_extra_fields=ignore_extra_fields,
         )
     else:
         value = serde.loads(
             clz,
-            source or "{}",
+            data or "{}",
             deserializers=deserializers,
             ignore_extra_fields=ignore_extra_fields,
         )
@@ -231,18 +231,18 @@ def loads(
     ignore_extra_fields: bool = False,
 ) -> T:
     return _typed_load(
-        clz, source=value, overrides=overrides, ignore_extra_fields=ignore_extra_fields
+        clz, data=value, overrides=overrides, ignore_extra_fields=ignore_extra_fields
     )[0]
 
 
 def load(
     clz: Type[T],
-    path: Union[str, Path, None],
+    file: Union[str, Path, None],
     overrides: Optional[List[str]] = None,
 ) -> T:
-    if isinstance(path, str):
-        path = Path(path)
-    return _typed_load(clz, path=path, overrides=overrides)[0]
+    if isinstance(file, str):
+        file = Path(file)
+    return _typed_load(clz, file=file, overrides=overrides)[0]
 
 
 def find_latest_checkpoint(dir: Path) -> Optional[Path]:

@@ -22,7 +22,7 @@ class Config:
 def test_override() -> None:
     config = hs.load(
         Config,
-        path=None,
+        file=None,
         overrides=[
             "task_id=CherryPick",
             "lr=0.1",

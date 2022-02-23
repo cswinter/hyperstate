@@ -383,7 +383,7 @@ def _upgrade_config(
     dry_run: bool,
 ) -> None:
     click.secho(filename, fg="cyan")
-    config, schedules = _typed_load(config_clz, path=Path(filename))
+    config, schedules = _typed_load(config_clz, file=Path(filename))
     upgraded_config = _typed_dump(
         config, elide_defaults=elide_defaults, schedules=schedules
     )
