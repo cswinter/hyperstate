@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hyperstate"
-version = "0.1.3"
+version = "0.2.0"
 description = "Library for managing hyperparameters and mutable state in machine learning training systems."
 authors = ["Clemens Winter <clemenswinter1@gmail.com>"]
 

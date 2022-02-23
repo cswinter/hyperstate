@@ -14,17 +14,18 @@ def help(config_clz: Type[Any], query: str) -> None:
     else:
         fields = find_fields(config, query)
         fields = sorted(fields, key=lambda x: x[1], reverse=True)
-        last_similarity = 0
+        last_similarity = 0.0
         best_similarity = fields[0][1] if len(fields) > 0 else 0
         last_struct = False
         for i, (path, similarity, field) in enumerate(fields):
             if (
                 similarity < last_similarity
                 and query not in field.name
+                and similarity < 1.0
                 and (
                     i > 3
                     or similarity < 0.4
-                    or last_similarity >= 1.0
+                    or best_similarity >= 1.0
                     or best_similarity - similarity > 0.2
                 )
             ):
