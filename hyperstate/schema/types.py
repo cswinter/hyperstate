@@ -94,6 +94,9 @@ class Literal:
             )
         ) or (isinstance(other, Option) and self.is_subtype(other.type))
 
+    def __repr__(self) -> str:
+        return "|".join(repr(v) for v in sorted(self.allowed_values))
+
 
 @dataclass(eq=True, frozen=True)
 class Struct:
@@ -134,6 +137,9 @@ class Option:
 class Nothing:
     def is_subtype(self, other: Type) -> bool:
         return True
+
+    def __repr__(self) -> str:
+        return "Nothing"
 
 
 def materialize_type(clz: typing.Type[Any]) -> Type:

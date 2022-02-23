@@ -6,7 +6,7 @@ from hyperstate.schema.types import materialize_type
 import hyperstate.schema.types as t
 
 
-def help(config_clz: Type[Any], query: str) -> None:
+def help(config_clz: Type[Any], query: str = "") -> None:
     config = materialize_type(config_clz)
     assert isinstance(config, t.Struct)
     if len(query) == 0:
@@ -16,7 +16,6 @@ def help(config_clz: Type[Any], query: str) -> None:
         fields = sorted(fields, key=lambda x: x[1], reverse=True)
         last_similarity = 0.0
         best_similarity = fields[0][1] if len(fields) > 0 else 0
-        last_struct = False
         for i, (path, similarity, field) in enumerate(fields):
             if (
                 similarity < last_similarity
@@ -38,11 +37,7 @@ def help(config_clz: Type[Any], query: str) -> None:
                     + style(field.type.name, fg="green")
                 )
                 print_schema(field.type, depth=1, recurse=False)
-                last_struct = True
             else:
-                if last_struct:
-                    print()
-                    last_struct = False
                 line = (
                     style(".", fg="white").join(
                         [style(s, fg="cyan") for s in path + [field.name]]
@@ -52,7 +47,7 @@ def help(config_clz: Type[Any], query: str) -> None:
                 )
                 if field.default is not None:
                     line += style(" = ", fg="white") + style(
-                        str(field.default), fg="yellow"
+                        repr(field.default), fg="yellow"
                     )
                 if field.docstring is not None:
                     line += (
@@ -67,18 +62,17 @@ def help(config_clz: Type[Any], query: str) -> None:
 def print_schema(schema: t.Struct, depth: int = 0, recurse: bool = True) -> None:
     for f in schema.fields.values():
         line = "  " * depth + style(f.name, fg="cyan") + style(":", fg="white") + " "
-        if isinstance(f.type, t.Primitive):
-            line += style(f.type.type, fg="green")
-            if f.default is not None:
-                line += style(" = ", fg="white") + style(str(f.default), fg="yellow")
-        elif isinstance(f.type, t.Struct):
+        if isinstance(f.type, t.Struct):
             line += style(f.type.name, fg="green")
             print(line)
             line = ""
             if recurse:
                 print_schema(f.type, depth + 1)
+            continue
         else:
-            raise NotImplementedError(f"{f.type}")
+            line += style(f.type, fg="green")
+        if f.default is not None:
+            line += style(" = ", fg="white") + style(repr(f.default), fg="yellow")
         if line != "":
             if f.docstring is not None:
                 line += (
