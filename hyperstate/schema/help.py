@@ -30,13 +30,15 @@ def help(config_clz: Type[Any], query: str = "") -> None:
             ):
                 break
             if isinstance(field.type, t.Struct):
-                print(
+                line = (
                     style(".".join(path + [field.name]), fg="cyan")
                     + style(":", fg="white")
                     + " "
                     + style(field.type.name, fg="green")
                 )
-                print_schema(field.type, depth=1, recurse=False)
+                if similarity >= 1.0:
+                    print_schema(field.type, depth=1, recurse=False)
+                    continue
             else:
                 line = (
                     style(".", fg="white").join(
@@ -49,13 +51,13 @@ def help(config_clz: Type[Any], query: str = "") -> None:
                     line += style(" = ", fg="white") + style(
                         repr(field.default), fg="yellow"
                     )
-                if field.docstring is not None:
-                    line += (
-                        " " * (40 - len(unstyle(line)))
-                        + style("  # ", fg="white")
-                        + style(field.docstring, fg="white")
-                    )
-                print(line)
+            if field.docstring is not None:
+                line += (
+                    " " * (40 - len(unstyle(line)))
+                    + style("  # ", fg="white")
+                    + style(field.docstring, fg="white")
+                )
+            print(line)
             last_similarity = similarity
 
 

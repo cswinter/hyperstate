@@ -206,11 +206,15 @@ def _typed_load(
         schema = materialize_type(clz)
         assert isinstance(schema, Struct)
         for override in overrides:
-            key, _ = override.split("=", maxsplit=1)
-            path = key.split(".")
+            keyval = override.split("=", maxsplit=1)
+            if len(keyval) == 1:
+                raise ValueError(
+                    f"Invalid override: {override}. Expected format: field.name=value"
+                )
+            path = keyval[0].split(".")
             if schema.find_field(path) is None:
                 raise FieldNotFoundError(
-                    f"Field {key} not found in {clz.__name__}", path[-1]
+                    f"Unknown field `{keyval[0]}` for class `{clz.__name__}`", path[-1]
                 )
     else:
         deserializers = []

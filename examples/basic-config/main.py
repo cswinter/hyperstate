@@ -1,8 +1,5 @@
 from dataclasses import dataclass
-import argparse
-import hyperstate
-from hyperstate.hyperstate import FieldNotFoundError
-import click
+from hyperstate import command
 
 
 @dataclass
@@ -46,22 +43,10 @@ class Config:
     steps: int = 100
 
 
+@command(Config)
+def main(cfg: Config) -> None:
+    print(cfg)
+
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=str, default=None, help="Path to config file")
-    parser.add_argument("--hps", nargs="+", help="Override hyperparameter values")
-    parser.add_argument(
-        "--hps-help", nargs="?", const="", help="Print help for hyperparameters"
-    )
-    args = parser.parse_args()
-    if args.hps_help is not None:
-        hyperstate.help(Config, args.hps_help)
-    else:
-        try:
-            config = hyperstate.load(Config, file=args.config, overrides=args.hps)
-            print(config)
-        except FieldNotFoundError as e:
-            print(click.style("ERROR", fg="red") + ": " + str(e))
-            print()
-            print("Most similar fields:")
-            hyperstate.help(Config, e.field_name)
+    main()
