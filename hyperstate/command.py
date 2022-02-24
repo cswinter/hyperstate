@@ -28,6 +28,12 @@ def command(cls: Type[C]) -> Callable[[Callable[[C], T]], Callable[[], T]]:
                 help="Print information about hyperparameters.",
             )
             parser.add_argument(
+                "-v",
+                "--verbose",
+                action="store_true",
+                help="Print verbose output.",
+            )
+            parser.add_argument(
                 dest="hyperparams",
                 nargs="*",
                 help="Hyperparameter values in the form of 'hyper.param=value'.",
@@ -59,6 +65,11 @@ def command(cls: Type[C]) -> Callable[[Callable[[C], T]], Callable[[], T]]:
                     sys.exit(1)
                 except (TypeError, ValueError) as e:
                     print(click.style("ERROR", fg="red") + ": " + str(e))
+                    if args.verbose:
+                        # Print traceback
+                        import traceback
+
+                        traceback.print_exc()
                     sys.exit(1)
             return f(cfg)
 

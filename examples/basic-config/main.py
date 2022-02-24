@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from hyperstate import command
+import hyperstate
 
 
 @dataclass
@@ -11,8 +11,8 @@ class OptimizerConfig:
     :param batch_size: Batch size.
     """
 
-    lr: float
-    batch_size: int
+    lr: float = 1e-4
+    batch_size: int = 512
     optimizer: str = "adam"
 
 
@@ -41,10 +41,10 @@ class Config:
 
     optimizer: OptimizerConfig
     net: NetConfig
-    steps: int = 100
+    steps: int = 10
 
 
-@command(Config)
+@hyperstate.command(Config)
 def main(cfg: Config) -> None:
     print(cfg)
 

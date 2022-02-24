@@ -294,7 +294,7 @@ class OverridesDeserializer(Deserializer):
         if self.applied_overrides:
             return None, False, False
         for override in self.overrides:
-            key, str_val = override.split("=")
+            key, str_val = override.split("=", maxsplit=1)
             try:
                 val = pyron.loads(str_val, preserve_structs=True)
             except ValueError:

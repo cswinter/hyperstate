@@ -4,10 +4,12 @@ from enum import Enum, EnumMeta
 from os import name
 from pathlib import Path
 from typing import (
+    Iterable,
     List,
     Any,
     Literal,
     Optional,
+    Set,
     Type,
     TypeVar,
     Dict,
@@ -178,33 +180,7 @@ def from_dict(
                 deserializers=deserializers,
                 fpath=f"{fpath}.{field_name}" if fpath else field_name,
             )
-        for field_name in remaining_fields:
-            field = clz.__dataclass_fields__.get(field_name)  # type: ignore
-            if (
-                field.default is MISSING
-                and field.default_factory is MISSING
-                and is_dataclass(field.type)
-            ):
-                missing_defaults = [
-                    f
-                    for f in field.type.__dataclass_fields__.values()
-                    if f.default is MISSING and f.default_factory is MISSING
-                ]
-                if len(missing_defaults) == 0:
-                    kwargs[field_name] = field.type()
-                else:
-                    fpath = f"{fpath}.{field_name}" if fpath else field_name
-                    missing_fields = ", ".join(
-                        [f"'{fpath}.{f.name}'" for f in missing_defaults]
-                    )
-                    raise TypeError(
-                        f"Failed to initialize '{field.type.__name__}': missing value for {missing_fields}"
-                    )
-            else:
-                fpath = f"{fpath}.{field_name}" if fpath else field_name
-                raise TypeError(
-                    f"Failed to initialize '{clz.__name__}': missing value for '{fpath}'"
-                )
+        _try_create_defaults(clz, kwargs, remaining_fields, fpath)
         try:
             instance = clz(**kwargs)  # type: ignore
             return instance
@@ -222,6 +198,41 @@ def from_dict(
     raise TypeError(
         f"Failed to deserialize '{fpath}': {repr(value)} is not a {_qualified_name(clz)}"
     )
+
+
+def _try_create_defaults(
+    cls: Any,
+    kwargs: Dict[str, Any],
+    remaining_fields: Iterable[Any],
+    fpath: str,
+) -> Any:
+    still_missing = []
+    for _field_name in remaining_fields:
+        field = cls.__dataclass_fields__.get(_field_name)
+        if field.default is MISSING and field.default_factory is MISSING:
+            if is_dataclass(field.type):
+                _missing_defaults = [
+                    f.name
+                    for f in field.type.__dataclass_fields__.values()
+                    if f.default is MISSING and f.default_factory is MISSING
+                ]
+                _kwargs: Dict[str, Any] = {}
+                _try_create_defaults(
+                    field.type,
+                    _kwargs,
+                    _missing_defaults,
+                    f"{fpath}.{_field_name}" if fpath else _field_name,
+                )
+                kwargs[field.name] = field.type(**_kwargs)
+            else:
+                still_missing.append(_field_name)
+
+    if len(still_missing) > 0:
+        prefix = f"{fpath}." if fpath else ""
+        missing_fields = ", ".join([f"'{prefix}{f}'" for f in still_missing])
+        raise TypeError(
+            f"Failed to initialize '{cls.__name__}': missing value for {missing_fields}"
+        )
 
 
 def loads(
