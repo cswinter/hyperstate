@@ -30,7 +30,7 @@ def command(cls: Type[C]) -> Callable[[Callable[[C], T]], Callable[[], T]]:
             parser.add_argument(
                 dest="hyperparams",
                 nargs="*",
-                help="Hyperparameter values in the form of `hyper.param=value`.",
+                help="Hyperparameter values in the form of 'hyper.param=value'.",
             )
             args = parser.parse_args()
             if args.hps_info is not None:
@@ -42,10 +42,10 @@ def command(cls: Type[C]) -> Callable[[Callable[[C], T]], Callable[[], T]]:
                         if "=" not in override:
                             print(
                                 click.style("ERROR", fg="red")
-                                + f": Invalid override `{override}`. Expected format: field.name=value"
+                                + f": Invalid override '{override}'. Expected format: 'field.name=value'."
                             )
                             print()
-                            print(f"Info for {override}:")
+                            print(f"Info for '{override}':")
                             hyperstate.help(cls, override)
                             sys.exit(0)
                     cfg = hyperstate.load(
@@ -56,6 +56,9 @@ def command(cls: Type[C]) -> Callable[[Callable[[C], T]], Callable[[], T]]:
                     print()
                     print("Most similar fields:")
                     hyperstate.help(cls, e.field_name)
+                    sys.exit(1)
+                except (TypeError, ValueError) as e:
+                    print(click.style("ERROR", fg="red") + ": " + str(e))
                     sys.exit(1)
             return f(cfg)
 

@@ -100,7 +100,7 @@ def from_dict(
     clz: Type[T],
     value: Any,
     deserializers: Optional[List[Deserializer]] = None,
-    data: str = "",
+    fpath: str = "",
     ignore_extra_fields: bool = False,
 ) -> T:
     if deserializers is None:
@@ -114,7 +114,7 @@ def from_dict(
 
     ret = False
     for deserializer in deserializers:
-        _value, ok, _ret = deserializer.deserialize(clz, value, data)
+        _value, ok, _ret = deserializer.deserialize(clz, value, fpath)
         if ok:
             value = _value
         ret = ret or _ret
@@ -135,7 +135,7 @@ def from_dict(
         if int(f) == f:
             return int(f)  # type: ignore
         else:
-            raise ValueError(f"Expected {data} to be an int, got {value}")
+            raise ValueError(f"Expected {fpath} to be an int, got {value}")
     elif (
         hasattr(clz, "__args__")
         and len(clz.__args__) == 1  # type: ignore
@@ -158,9 +158,8 @@ def from_dict(
             value = {}
         elif isnamedtupleinstance(value):
             value = value._asdict()
-        assert isinstance(
-            value, dict
-        ), f"{value} cannot be deserialized as dataclass {clz}"
+        if not isinstance(value, dict):
+            raise ValueError(f"'{value}' cannot be deserialized as '{clz.__name__}'.")
         kwargs = {}
         remaining_fields = set(clz.__dataclass_fields__.keys())  # type: ignore
         for field_name, v in value.items():
@@ -177,7 +176,7 @@ def from_dict(
                 clz=field.type,
                 value=v,
                 deserializers=deserializers,
-                data=f"{data}.{field_name}" if data else field_name,
+                fpath=f"{fpath}.{field_name}" if fpath else field_name,
             )
         for field_name in remaining_fields:
             field = clz.__dataclass_fields__.get(field_name)  # type: ignore
@@ -186,12 +185,31 @@ def from_dict(
                 and field.default_factory is MISSING
                 and is_dataclass(field.type)
             ):
-                kwargs[field_name] = field.type()
+                missing_defaults = [
+                    f
+                    for f in field.type.__dataclass_fields__.values()
+                    if f.default is MISSING and f.default_factory is MISSING
+                ]
+                if len(missing_defaults) == 0:
+                    kwargs[field_name] = field.type()
+                else:
+                    fpath = f"{fpath}.{field_name}" if fpath else field_name
+                    missing_fields = ", ".join(
+                        [f"'{fpath}.{f.name}'" for f in missing_defaults]
+                    )
+                    raise TypeError(
+                        f"Failed to initialize '{field.type.__name__}': missing value for {missing_fields}"
+                    )
+            else:
+                fpath = f"{fpath}.{field_name}" if fpath else field_name
+                raise TypeError(
+                    f"Failed to initialize '{clz.__name__}': missing value for '{fpath}'"
+                )
         try:
             instance = clz(**kwargs)  # type: ignore
             return instance
         except TypeError as e:
-            raise TypeError(f"Failed to initialize {data}: {e}")
+            raise TypeError(f"Failed to initialize '{clz.__name__}': {e}")
     elif isinstance(clz, EnumMeta):
         return clz(value)
     elif typing.get_origin(clz) == Literal:
@@ -199,8 +217,10 @@ def from_dict(
         if value not in args:
             raise ValueError(f"{value} must be one of {args}")
         return value  # type: ignore
+    if isnamedtupleinstance(value) and len(value) == 0:
+        value = value.__class__.__name__
     raise TypeError(
-        f"Failed to deserialize {data}: {value} is not a {_qualified_name(clz)}"
+        f"Failed to deserialize '{fpath}': {repr(value)} is not a {_qualified_name(clz)}"
     )
 
 

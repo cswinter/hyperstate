@@ -11,8 +11,9 @@ class OptimizerConfig:
     :param batch_size: Batch size.
     """
 
-    lr: float = 0.003
-    batch_size: int = 512
+    lr: float
+    batch_size: int
+    optimizer: str = "adam"
 
 
 @dataclass
