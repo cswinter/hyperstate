@@ -11,6 +11,7 @@ click = "^8.0.3"
 msgpack = "^1.0.3"
 msgpack-numpy = "^0.4.7"
 dill = "^0.3.4"
+docstring-parser = "^0.13"
 
 [tool.poetry.dev-dependencies]
 black = "^21.12b0"

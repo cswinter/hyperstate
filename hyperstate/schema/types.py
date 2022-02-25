@@ -5,6 +5,7 @@ import typing
 from abc import ABC
 from dataclasses import dataclass, is_dataclass
 import dataclasses
+import docstring_parser
 
 import pyron
 
@@ -169,17 +170,8 @@ def materialize_type(clz: typing.Type[Any]) -> Type:
         return List(materialize_type(clz.__args__[0]))
     elif is_dataclass(clz):
         fields = {}
-        docstrings = {}
-        if clz.__doc__ is not None:
-            for line in clz.__doc__.splitlines():
-                line = line.strip()
-                if line.startswith(":param"):
-                    line = line[len(":param ") :].strip()
-                    if ":" in line:
-                        name, docs = line.split(":", 1)
-                        name = name.strip()
-                        docs = docs.strip()
-                        docstrings[name] = docs
+        docs = docstring_parser.parse(clz.__doc__ or "")
+        field_docs = {f.arg_name: f.description for f in docs.params}
         for name, field in clz.__dataclass_fields__.items():
             if field.default is not dataclasses.MISSING:
                 has_default = True
@@ -197,7 +189,7 @@ def materialize_type(clz: typing.Type[Any]) -> Type:
                 materialize_type(field.type),
                 default,
                 has_default,
-                docstrings.get(name),
+                field_docs.get(name),
             )
         from hyperstate.schema.versioned import Versioned
 
