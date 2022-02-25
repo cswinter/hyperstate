@@ -46,7 +46,9 @@ def help(config_clz: Type[Any], query: str = "") -> None:
                     + style(str(field.type), fg="green")
                 )
                 if similarity >= 1.0:
+                    print(line)
                     print_schema(unwrapped, depth=1, recurse=False)
+                    last_similarity = similarity
                     continue
             else:
                 line = (
