@@ -116,9 +116,12 @@ class Struct:
             if segment not in self.fields:
                 return None
             _schema = schema.fields[segment].type
-            if not isinstance(_schema, Struct):
+            while isinstance(_schema, Option):
+                _schema = _schema.type
+            if isinstance(_schema, Struct):
+                schema = _schema
+            else:
                 return None
-            schema = _schema
         return schema.fields.get(path[-1])
 
     def is_subtype(self, other: Type) -> bool:
@@ -258,3 +261,11 @@ def load_schema(path: str) -> Type:
     with open(path, "r") as f:
         schema = pyron.load(f.read(), preserve_structs=True)
     return schema_from_namedtuple(schema)
+
+
+def _unwrap_container_type(type: Type) -> Type:
+    if isinstance(type, List):
+        return _unwrap_container_type(type.inner)
+    if isinstance(type, Option):
+        return _unwrap_container_type(type.type)
+    return type

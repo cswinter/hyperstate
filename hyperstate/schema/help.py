@@ -2,16 +2,8 @@ from typing import Any, List, Optional, Tuple, Type
 from click import style, unstyle
 from hyperstate.schema.schema_checker import name_similarity
 
-from hyperstate.schema.types import materialize_type
+from hyperstate.schema.types import _unwrap_container_type, materialize_type
 import hyperstate.schema.types as t
-
-
-def _unwrap_container_type(type: t.Type) -> t.Type:
-    if isinstance(type, t.List):
-        return _unwrap_container_type(type.inner)
-    if isinstance(type, t.Option):
-        return _unwrap_container_type(type.type)
-    return type
 
 
 def help(config_clz: Type[Any], query: str = "") -> None:
