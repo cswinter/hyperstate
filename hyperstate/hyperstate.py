@@ -296,7 +296,7 @@ class OverridesDeserializer(Deserializer):
         for override in self.overrides:
             key, str_val = override.split("=", maxsplit=1)
             try:
-                val = pyron.loads(str_val, preserve_structs=True)
+                val = pyron.loads(str_val, preserve_structs=True, print_errors=False)
             except ValueError:
                 val = str_val
             fpath = key.split(".")
