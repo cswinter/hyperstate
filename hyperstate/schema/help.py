@@ -6,6 +6,14 @@ from hyperstate.schema.types import materialize_type
 import hyperstate.schema.types as t
 
 
+def _unwrap_container_type(type: t.Type) -> t.Type:
+    if isinstance(type, t.List):
+        return _unwrap_container_type(type.inner)
+    if isinstance(type, t.Option):
+        return _unwrap_container_type(type.type)
+    return type
+
+
 def help(config_clz: Type[Any], query: str = "") -> None:
     config = materialize_type(config_clz)
     assert isinstance(config, t.Struct)
@@ -29,15 +37,16 @@ def help(config_clz: Type[Any], query: str = "") -> None:
                 )
             ):
                 break
-            if isinstance(field.type, t.Struct):
+            unwrapped = _unwrap_container_type(field.type)
+            if isinstance(unwrapped, t.Struct):
                 line = (
                     style(".".join(path + [field.name]), fg="cyan")
                     + style(":", fg="white")
                     + " "
-                    + style(field.type.name, fg="green")
+                    + style(str(field.type), fg="green")
                 )
                 if similarity >= 1.0:
-                    print_schema(field.type, depth=1, recurse=False)
+                    print_schema(unwrapped, depth=1, recurse=False)
                     continue
             else:
                 line = (
@@ -64,12 +73,13 @@ def help(config_clz: Type[Any], query: str = "") -> None:
 def print_schema(schema: t.Struct, depth: int = 0, recurse: bool = True) -> None:
     for f in schema.fields.values():
         line = "  " * depth + style(f.name, fg="cyan") + style(":", fg="white") + " "
-        if isinstance(f.type, t.Struct):
-            line += style(f.type.name, fg="green")
+        unwrapped = _unwrap_container_type(f.type)
+        if isinstance(unwrapped, t.Struct):
+            line += style(str(f.type), fg="green")
             print(line)
             line = ""
             if recurse:
-                print_schema(f.type, depth + 1)
+                print_schema(unwrapped, depth + 1)
             continue
         else:
             line += style(f.type, fg="green")
