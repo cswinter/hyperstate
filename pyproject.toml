@@ -3,6 +3,13 @@ name = "hyperstate"
 version = "0.2.5"
 description = "Library for managing hyperparameters and mutable state of machine learning training systems."
 authors = ["Clemens Winter <clemenswinter1@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+classifiers = [
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "License :: OSI Approved :: Apache Software License",
+    "License :: OSI Approved :: MIT License",
+]
 
 [tool.poetry.dependencies]
 python = "^3.8"

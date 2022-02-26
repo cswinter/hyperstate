@@ -412,3 +412,10 @@ Config(
 ```
 
 When you call `step()`, all config values that are schedules will be updated.
+
+
+## License
+
+HyperState is dual-licensed under the MIT license and Apache License (Version 2.0).
+
+See LICENSE-MIT and LICENSE-APACHE for more information.
