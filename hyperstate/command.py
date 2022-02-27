@@ -3,7 +3,7 @@ from typing import Any, Callable, Type, TypeVar
 import sys
 import click
 import hyperstate
-from hyperstate.hyperstate import FieldNotFoundError
+from hyperstate.hyperstate import FieldNotFoundError, FieldsNotFoundError
 
 T = TypeVar("T")
 C = TypeVar("C")
@@ -57,11 +57,23 @@ def command(cls: Type[C]) -> Callable[[Callable[[C], T]], Callable[[], T]]:
                     cfg = hyperstate.load(
                         cls, file=args.config, overrides=args.hyperparams
                     )
+                except FieldsNotFoundError as e:
+                    print(click.style("ERROR", fg="red") + ": " + str(e))
+                    for error in e.not_found_errors:
+                        print()
+                        print(f"Field most similar to '{error.field_name}':")
+                        hyperstate.help(cls, error.field_name)
+                    sys.exit(1)
                 except FieldNotFoundError as e:
                     print(click.style("ERROR", fg="red") + ": " + str(e))
                     print()
                     print("Most similar fields:")
                     hyperstate.help(cls, e.field_name)
+                    if args.verbose:
+                        # Print traceback
+                        import traceback
+
+                        traceback.print_exc()
                     sys.exit(1)
                 except (TypeError, ValueError) as e:
                     print(click.style("ERROR", fg="red") + ": " + str(e))

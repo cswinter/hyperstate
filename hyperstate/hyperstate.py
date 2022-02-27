@@ -16,6 +16,7 @@ from typing import (
 )
 from dataclasses import MISSING, dataclass
 from hyperstate.schema.types import Struct, materialize_type
+import hyperstate.schema.types as t
 
 from hyperstate.schema.versioned import (
     VersionedSerializer,
@@ -28,7 +29,6 @@ from hyperstate.serde import (
 )
 import hyperstate.serde as serde
 from .lazy import LazyDeserializer, LazySerializer
-
 import pyron
 
 from hyperstate.schedule import Schedule, _parse_schedule
@@ -144,9 +144,15 @@ class HyperState(ABC, Generic[C, S]):
 
 
 class FieldNotFoundError(Exception):
-    def __init__(self, msg: str, field_name: str) -> None:
-        super().__init__(msg)
-        self.field_name = field_name
+    def __init__(self, fpath: str, cls: Type[Any], fname: str) -> None:
+        super().__init__(f"Unknown field '{fpath}' for class '{cls.__name__}")
+        self.field_name = fname
+
+
+class FieldsNotFoundError(Exception):
+    def __init__(self, not_found_errors: List[FieldNotFoundError]) -> None:
+        super().__init__(f"Unknown fields: {[e.field_name for e in not_found_errors]}")
+        self.not_found_errors = not_found_errors
 
 
 def _apply_schedules(state: Any, config: Any, schedules: Dict[str, Any]) -> None:
@@ -203,19 +209,6 @@ def _typed_load(
 ) -> Tuple[T, Dict[str, Any]]:
     if overrides is not None:
         deserializers: List[Deserializer] = [OverridesDeserializer(overrides)]
-        schema = materialize_type(clz)
-        assert isinstance(schema, Struct)
-        for override in overrides:
-            keyval = override.split("=", maxsplit=1)
-            if len(keyval) == 1:
-                raise ValueError(
-                    f"Invalid override: {override}. Expected format: field.name=value"
-                )
-            path = keyval[0].split(".")
-            if schema.find_field(path) is None:
-                raise FieldNotFoundError(
-                    f"Unknown field `{keyval[0]}` for class `{clz.__name__}`", path[-1]
-                )
     else:
         deserializers = []
     schedules = ScheduleDeserializer()
@@ -293,19 +286,53 @@ class OverridesDeserializer(Deserializer):
     ) -> Tuple[Optional[T], bool, bool]:
         if self.applied_overrides:
             return None, False, False
+
+        schema = materialize_type(clz)
+        errors = []
+        assert isinstance(schema, Struct), f"{clz} is not a struct"
         for override in self.overrides:
-            key, str_val = override.split("=", maxsplit=1)
-            try:
-                val = pyron.loads(str_val, preserve_structs=True, print_errors=False)
-            except ValueError:
-                val = str_val
+            keyval = override.split("=", maxsplit=1)
+            if len(keyval) == 1:
+                raise ValueError(
+                    f"Invalid override: {override}. Expected format: field.name=value"
+                )
+            key, str_val = keyval
             fpath = key.split(".")
+            field = schema.find_field(fpath)
+
+            if field is None:
+                errors.append(FieldNotFoundError(key, clz, fpath[-1]))
+                continue
+
+            if isinstance(field.type, t.Primitive) and field.type.type == "str":
+                val: Any = str_val
+            elif isinstance(field.type, t.Primitive) and field.type.type == "bool":
+                if (
+                    str_val == "True"
+                    or str_val == "true"
+                    or str_val == "1"
+                    or str_val == "t"
+                    or str_val == "T"
+                ):
+                    val = True
+                elif (
+                    str_val == "False"
+                    or str_val == "false"
+                    or str_val == "0"
+                    or str_val == "f"
+                    or str_val == "F"
+                ):
+                    val = False
+            else:
+                val = pyron.loads(str_val, preserve_structs=True, print_errors=False)
             _value = value
             for segment in fpath[:-1]:
                 if segment not in _value:
                     _value[segment] = {}
                 _value = _value[segment]
             _value[fpath[-1]] = val
+        if len(errors) > 0:
+            raise FieldsNotFoundError(errors)
         self.applied_overrides = True
         return value, True, False
 
