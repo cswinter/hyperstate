@@ -170,8 +170,7 @@ def materialize_type(clz: typing.Type[Any]) -> Type:
         return List(materialize_type(clz.__args__[0]))
     elif is_dataclass(clz):
         fields = {}
-        docs = docstring_parser.parse(clz.__doc__ or "")
-        field_docs = {f.arg_name: f.description for f in docs.params}
+        field_docs = _find_all_field_docs(clz)
         for name, field in clz.__dataclass_fields__.items():
             if field.default is not dataclasses.MISSING:
                 has_default = True
@@ -261,3 +260,14 @@ def _unwrap_container_type(type: Type) -> Type:
     if isinstance(type, Option):
         return _unwrap_container_type(type.type)
     return type
+
+
+def _find_all_field_docs(clz: typing.Type[Any]) -> typing.Dict[str, str]:
+    docs = docstring_parser.parse(clz.__doc__ or "")
+    field_docs = {
+        f.arg_name: f.description for f in docs.params if f.description is not None
+    }
+    if hasattr(clz, "__bases__"):
+        for base in clz.__bases__:
+            field_docs.update(_find_all_field_docs(base))
+    return field_docs

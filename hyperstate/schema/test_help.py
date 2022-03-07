@@ -5,19 +5,28 @@ import click
 
 
 @dataclass
-class OptimizerConfig:
+class BaseOptimizerConfig:
     """Optimizer hyperparameters
 
     Attributes:
         lr: learning rate
         anneal_lr: anneal learning rate
         max_grad_norm: max gradient norm
-        batch_size: batch size
     """
 
     lr: float = 1e-4
     anneal_lr: bool = True
     max_grad_norm: float = 100.0
+
+
+@dataclass
+class OptimizerConfig(BaseOptimizerConfig):
+    """Optimizer hyperparameters
+
+    Attributes:
+        batch_size: batch size
+    """
+
     batch_size: int = 512
 
 
