@@ -147,11 +147,12 @@ class FieldNotFoundError(Exception):
     def __init__(self, fpath: str, cls: Type[Any], fname: str) -> None:
         super().__init__(f"Unknown field '{fpath}' for class '{cls.__name__}")
         self.field_name = fname
+        self.fpath = fpath
 
 
 class FieldsNotFoundError(Exception):
     def __init__(self, not_found_errors: List[FieldNotFoundError]) -> None:
-        super().__init__(f"Unknown fields: {[e.field_name for e in not_found_errors]}")
+        super().__init__(f"Unknown fields: {[e.fpath for e in not_found_errors]}")
         self.not_found_errors = not_found_errors
 
 
@@ -331,7 +332,9 @@ class OverridesDeserializer(Deserializer):
                     _value[segment] = {}
                 _value = _value[segment]
             _value[fpath[-1]] = val
-        if len(errors) > 0:
+        if len(errors) == 1:
+            raise errors[0]
+        elif len(errors) > 1:
             raise FieldsNotFoundError(errors)
         self.applied_overrides = True
         return value, True, False

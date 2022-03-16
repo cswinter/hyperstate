@@ -114,7 +114,7 @@ class Struct:
     def find_field(self, path: Sequence[str]) -> typing.Optional[Field]:
         schema = self
         for segment in path[:-1]:
-            if segment not in self.fields:
+            if segment not in schema.fields:
                 return None
             _schema = schema.fields[segment].type
             while isinstance(_schema, Option):
