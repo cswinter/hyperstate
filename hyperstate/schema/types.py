@@ -254,8 +254,7 @@ def schema_from_namedtuple(schema: Any) -> Type:
 
 
 def load_schema(path: str) -> Struct:
-    with open(path, "r") as f:
-        schema = pyron.load(f.read(), preserve_structs=True)
+    schema = pyron.load(path, preserve_structs=True)
     result = schema_from_namedtuple(schema)
     assert isinstance(result, Struct)
     return result
