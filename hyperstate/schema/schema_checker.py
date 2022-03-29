@@ -211,7 +211,7 @@ class SchemaChecker:
                     )
         elif isinstance(old, t.Literal):
             assert isinstance(new, t.Literal)
-            new_values = new.allowed_values - old.allowed_values
+            new_values = set(new.allowed_values) - set(old.allowed_values)
             if new_values:
                 self.changes.append(
                     LiteralValuesAdded(
@@ -219,7 +219,7 @@ class SchemaChecker:
                         new_values,
                     )
                 )
-            removed_values = old.allowed_values - new.allowed_values
+            removed_values = set(old.allowed_values) - set(new.allowed_values)
             if removed_values:
                 self.changes.append(
                     LiteralValuesRemoved(

@@ -170,7 +170,7 @@ class TypeChanged(SchemaChange):
                 self.field, lambda x: int(x), rendered="lambda x: int(x)"
             )
         elif isinstance(self.new, t.Literal):
-            return CheckValue(self.field, self.new.allowed_values)
+            return CheckValue(self.field, set(self.new.allowed_values))
         else:
             return None
 

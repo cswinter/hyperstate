@@ -35,7 +35,6 @@ from hyperstate.schema.types import (
     Enum,
     Struct,
     materialize_type,
-    Type,
     Primitive,
     Option,
     Literal,
@@ -186,7 +185,7 @@ def test_config_v2_to_v3() -> None:
             TypeChanged(
                 field=("optimizer",),
                 old=Primitive("str"),
-                new=Literal(allowed_values={"adam", "sgd"}),
+                new=Literal(allowed_values=["adam", "sgd"]),
             ),
             DefaultValueChanged(field=("optimizer",), old="sgd", new="adam"),
             FieldRenamed(field=("learning_rate",), new_name=("lr",)),

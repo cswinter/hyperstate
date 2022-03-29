@@ -140,7 +140,9 @@ class CheckValue(RewriteRule):
         field = _remove_schema(schema, self.field)
         assert field is not None, f"Field {self.field} not found in schema"
         _insert_schema(
-            schema, self.field, replace(field, type=types.Literal(self.allowed_values))
+            schema,
+            self.field,
+            replace(field, type=types.Literal(list(self.allowed_values))),
         )
 
 
@@ -166,7 +168,13 @@ class RejectValues(RewriteRule):
             self.field,
             replace(
                 field,
-                type=types.Literal(schema.allowed_values - self.disallowed_values),
+                type=types.Literal(
+                    [
+                        v
+                        for v in schema.allowed_values
+                        if v not in self.disallowed_values
+                    ]
+                ),
             ),
         )
 

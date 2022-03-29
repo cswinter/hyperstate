@@ -73,9 +73,9 @@ class Enum:
         ) or (isinstance(other, Option) and self.is_subtype(other.type))
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(frozen=True)
 class Literal:
-    allowed_values: typing.Set[Any]
+    allowed_values: typing.List[Any]
 
     def is_subtype(self, other: Type) -> bool:
         return (
@@ -96,7 +96,12 @@ class Literal:
         ) or (isinstance(other, Option) and self.is_subtype(other.type))
 
     def __repr__(self) -> str:
-        return "|".join(repr(v) for v in sorted(self.allowed_values))
+        return "|".join(sorted([repr(v) for v in self.allowed_values]))
+
+    def __eq__(self, other: Any) -> bool:
+        if other.__class__ is not self.__class__:
+            return NotImplemented
+        return set(self.allowed_values) == set(other.allowed_values)
 
 
 @dataclass(eq=True, frozen=True)
@@ -205,7 +210,7 @@ def materialize_type(clz: typing.Type[Any]) -> Type:
             variants[name] = value.value
         return Enum(clz.__name__, variants)
     elif typing.get_origin(clz) == typing.Literal:
-        return Literal(set(typing.get_args(clz)))
+        return Literal(list(typing.get_args(clz)))
     else:
         raise ValueError(f"Unsupported type: {clz}")
 
@@ -243,7 +248,7 @@ def schema_from_namedtuple(schema: Any) -> Type:
             variants[name] = value
         return Enum(schema.name, variants)
     elif clz_name == "Literal":
-        return Literal(set(schema.allowed_values))
+        return Literal(list(schema.allowed_values))
     else:
         raise ValueError(f"Unsupported type: {clz_name}")
 
