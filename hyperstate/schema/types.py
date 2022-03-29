@@ -253,10 +253,12 @@ def schema_from_namedtuple(schema: Any) -> Type:
         raise ValueError(f"Unsupported type: {clz_name}")
 
 
-def load_schema(path: str) -> Type:
+def load_schema(path: str) -> Struct:
     with open(path, "r") as f:
         schema = pyron.load(f.read(), preserve_structs=True)
-    return schema_from_namedtuple(schema)
+    result = schema_from_namedtuple(schema)
+    assert isinstance(result, Struct)
+    return result
 
 
 def _unwrap_container_type(type: Type) -> Type:
