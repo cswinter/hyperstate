@@ -235,7 +235,7 @@ def test_schema():
     old = load_schema("config-schema.ron")
     checker = SchemaChecker(old, Config)
     if checker.severity() >= Severity.WARN:
-        print(checker.print_report())
+        checker.print_report()
     assert checker.severity() == Severity.INFO
 ```
 
