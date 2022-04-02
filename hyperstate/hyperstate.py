@@ -19,6 +19,7 @@ from hyperstate.schema.types import Struct, materialize_type
 import hyperstate.schema.types as t
 
 from hyperstate.schema.versioned import (
+    Versioned,
     VersionedSerializer,
     VersionedDeserializer,
 )
@@ -254,9 +255,15 @@ def load(
     file: Union[str, Path, None],
     overrides: Optional[List[str]] = None,
 ) -> T:
+    if file is None and issubclass(clz, Versioned):
+        allow_missing_version = True
+    else:
+        allow_missing_version = False
     if isinstance(file, str):
         file = Path(file)
-    return _typed_load(clz, file=file, overrides=overrides)[0]
+    return _typed_load(
+        clz, file=file, overrides=overrides, allow_missing_version=allow_missing_version
+    )[0]
 
 
 def find_latest_checkpoint(dir: Path) -> Optional[Path]:
