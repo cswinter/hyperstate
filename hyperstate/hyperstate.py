@@ -473,7 +473,7 @@ def atomic_move(src: str, dst: str) -> None:
             # are copying into `<dst>`, they don't overlap in their tmp copies.
             copy_id = uuid.uuid4()
             tmp_dst = f"{dst}.{copy_id}.tmp"
-            shutil.copyfile(src, tmp_dst)
+            shutil.move(src, tmp_dst)
 
             # Then do an atomic rename onto the new name, and clean up the
             # source image.
