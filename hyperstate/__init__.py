@@ -3,7 +3,7 @@ from .lazy import Serializable, Lazy, blob
 from .schema.versioned import Versioned
 from .schema.schema_checker import schema_evolution_cli
 from .schema.help import help
-from .command import command
+from .command import command, stateful_command
 
 __all__ = [
     "HyperState",
@@ -18,4 +18,5 @@ __all__ = [
     "schema_evolution_cli",
     "help",
     "command",
+    "stateful_command"
 ]

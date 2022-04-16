@@ -2,6 +2,7 @@ import os
 import shutil
 from abc import ABC, abstractmethod
 from pathlib import Path
+import sys
 import tempfile
 from typing import (
     Generic,
@@ -15,8 +16,10 @@ from typing import (
     Union,
 )
 from dataclasses import MISSING, dataclass
+import hyperstate
 from hyperstate.schema.types import Struct, materialize_type
 import hyperstate.schema.types as t
+import click
 
 from hyperstate.schema.versioned import (
     Versioned,
@@ -44,7 +47,7 @@ class HyperState(ABC, Generic[C, S]):
         self,
         config_clz: Type[C],
         state_clz: Type[S],
-        initial_config: Union[str, Path],
+        initial_config: Union[str, Path, None],
         checkpoint_dir: Optional[Union[str, Path]] = None,
         overrides: Optional[List[str]] = None,
         ignore_extra_fields: bool = False,
@@ -72,26 +75,28 @@ class HyperState(ABC, Generic[C, S]):
             if checkpoint is not None:
                 print(f"Resuming from checkpoint {checkpoint}")
                 initial_config = checkpoint
+                if str(checkpoint).startswith('latest'):
+                    self._last_checkpoint = checkpoint
         else:
             self.checkpoint_dir = None
 
-        if os.path.isdir(initial_config):
+        if initial_config is None:
+            config_path = None
+            state_path = None
+        elif os.path.isdir(initial_config):
             config_path = initial_config / "config.ron"
-            state_path: Optional[Path] = initial_config / "state.ron"
+            state_path = initial_config / "state.ron"
         else:
             config_path = initial_config
             state_path = None
 
-        try:
-            self.config, self.schedules = _typed_load(
-                config_clz,
-                file=config_path,
-                overrides=overrides or [],
-                allow_missing_version=state_path is not None,
-                ignore_extra_fields=ignore_extra_fields,
-            )
-        except Exception as e:
-            raise RuntimeError(f"Failed to load config from {config_path}: {e}") from e
+        self.config, self.schedules = _typed_load(
+            config_clz,
+            file=config_path,
+            overrides=overrides or [],
+            allow_missing_version=state_path is not None,
+            ignore_extra_fields=ignore_extra_fields,
+        )
         if state_path is None:
             self.state = self.initial_state()
         else:
@@ -133,7 +138,8 @@ class HyperState(ABC, Generic[C, S]):
             checkpoint_dir = (
                 self.checkpoint_dir / f"latest-{self.checkpoint_key()}{val:012}"
             )
-            self.checkpoint(str(checkpoint_dir))
+            if not checkpoint_dir.exists():
+                self.checkpoint(str(checkpoint_dir))
             if self._last_checkpoint is not None:
                 with tempfile.TemporaryDirectory() as tmpdir:
                     shutil.move(str(self._last_checkpoint), tmpdir)
@@ -149,6 +155,7 @@ class FieldNotFoundError(Exception):
         super().__init__(f"Unknown field '{fpath}' for class '{cls.__name__}")
         self.field_name = fname
         self.fpath = fpath
+        self.cls = cls
 
 
 class FieldsNotFoundError(Exception):
@@ -267,7 +274,6 @@ def load(
 
 
 def find_latest_checkpoint(dir: Path) -> Optional[Path]:
-    # TODO: error handling
     # Check that dir exists
     if not dir.exists():
         return None
@@ -275,9 +281,12 @@ def find_latest_checkpoint(dir: Path) -> Optional[Path]:
     latest_dir = None
     for d in dir.iterdir():
         if d.is_dir() and len(d.name) >= 12:
-            if latest is None or int(d.name[-12:]) > latest:
-                latest = int(d.name[-12:])
-                latest_dir = d
+            try:
+                if latest is None or int(d.name[-12:]) > latest:
+                    latest = int(d.name[-12:])
+                    latest_dir = d
+            except ValueError:
+                pass
     return latest_dir
 
 
