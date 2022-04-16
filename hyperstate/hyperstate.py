@@ -478,6 +478,5 @@ def atomic_move(src: str, dst: str) -> None:
             # Then do an atomic rename onto the new name, and clean up the
             # source image.
             os.rename(tmp_dst, dst)
-            os.unlink(src)
         else:
             raise
