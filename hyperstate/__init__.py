@@ -18,5 +18,5 @@ __all__ = [
     "schema_evolution_cli",
     "help",
     "command",
-    "stateful_command"
+    "stateful_command",
 ]
