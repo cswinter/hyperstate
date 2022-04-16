@@ -75,7 +75,7 @@ class HyperState(ABC, Generic[C, S]):
             if checkpoint is not None:
                 print(f"Resuming from checkpoint {checkpoint}")
                 initial_config = checkpoint
-                if str(checkpoint).startswith("latest"):
+                if checkpoint.name.startswith("latest"):
                     self._last_checkpoint = checkpoint
         else:
             self.checkpoint_dir = None
