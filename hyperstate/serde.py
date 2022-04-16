@@ -191,7 +191,7 @@ def from_dict(
     elif typing.get_origin(clz) == Literal:
         args = typing.get_args(clz)
         if value not in args:
-            raise ValueError(f"{value} must be one of {args}")
+            raise ValueError(f"{fpath} must be one of {args} but got '{value}'.")
         return value  # type: ignore
     if isnamedtupleinstance(value) and len(value) == 0:
         value = value.__class__.__name__

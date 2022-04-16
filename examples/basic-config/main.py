@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Literal
 import hyperstate
 
 
@@ -27,6 +28,7 @@ class NetConfig:
 
     hidden_size: int = 128
     num_layers: int = 2
+    norm: Literal[None, "layernorm", "batchnorm"] = None
 
 
 @dataclass
