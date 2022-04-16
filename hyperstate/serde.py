@@ -258,9 +258,13 @@ def load(
 ) -> T:
     if deserializers is None:
         deserializers = []
+    try:
+        data = pyron.load(str(file))
+    except FileNotFoundError:
+        raise FileNotFoundError(f"{file} does not exist.")
     return from_dict(
         clz,
-        pyron.load(str(file)),
+        data,
         deserializers,
         ignore_extra_fields=ignore_extra_fields,
     )
