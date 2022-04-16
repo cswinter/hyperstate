@@ -99,7 +99,7 @@ class SchemaChecker:
                 self.changes.append(TypeChanged(tuple(path), old, new))
         elif isinstance(old, t.List):
             assert isinstance(new, t.List)
-            self._find_changes(old.inner, new.inner, path + ["[]"])
+            self._find_changes(old.inner, new.inner, path)
         elif isinstance(old, t.Struct):
             assert isinstance(new, t.Struct)
             for name, field in new.fields.items():
@@ -180,7 +180,7 @@ class SchemaChecker:
                         )
         elif isinstance(old, t.Option):
             assert isinstance(new, t.Option)
-            self._find_changes(old.type, new.type, path + ["?"])
+            self._find_changes(old.type, new.type, path)
         elif isinstance(old, t.Enum):
             assert isinstance(new, t.Enum)
             for name, value in new.variants.items():
