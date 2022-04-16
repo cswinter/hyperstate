@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 import tempfile
 from typing import (
+    Callable,
     Generic,
     List,
     Any,
@@ -42,101 +43,124 @@ S = TypeVar("S")
 T = TypeVar("T")
 
 
-class HyperState(ABC, Generic[C, S]):
+class StateManager(Generic[C, S]):
     def __init__(
         self,
-        config_clz: Type[C],
-        state_clz: Type[S],
-        initial_config: Union[str, Path, None],
-        checkpoint_dir: Optional[Union[str, Path]] = None,
+        config_cls: Type[C],
+        state_cls: Type[S],
+        initial_state: Callable[[C], S],
+        init_path: Union[str, Path, None],
+        checkpoint_dir: Union[str, Path, None] = None,
         overrides: Optional[List[str]] = None,
         ignore_extra_fields: bool = False,
+        checkpoint_key: str = "step",
     ) -> None:
         """
         :param config_clz: The type of the config object.
         :param state_clz: The type of the state object.
-        :param initial_config: Path to a config file or checkpoint.
-        :param checkpoint_dir: Directory to store checkpoints. If the directory contains a valid checkpoint, the latest checkpoint will be loaded and `initial_config` will be ignored.
+        :param initial_state: A function that takes the config object and returns the initial state.
+        :param init_path: Path to a config file or checkpoint.
+        :param checkpoint_dir: Directory to store checkpoints. If the directory contains a valid checkpoint, the latest checkpoint will be loaded and `init_path` will be ignored.
         :param overrides: A list of overrides to apply to the config. (Example: ["optimizer.lr=0.1"])
         :param ignore_extra_fields: If `True`, ignore extra fields in the config file.
+        :param checkpoint_key: The name of a field in the state object that will have a unique value for each checkpoint.
         """
-        self.config_clz = config_clz
-        self.state_clz = state_clz
-        self._last_checkpoint: Optional[Path] = None
-        if isinstance(initial_config, str):
-            initial_config = Path(initial_config)
-        if isinstance(checkpoint_dir, str):
-            checkpoint_dir = Path(checkpoint_dir)
+        self.config_cls = config_cls
+        self.state_cls = state_cls
+        self._initial_state = initial_state
+        self.checkpoint_key = checkpoint_key
 
-        checkpoint = None
-        if checkpoint_dir is not None:
-            self.checkpoint_dir: Optional[Path] = Path(checkpoint_dir)
-            checkpoint = find_latest_checkpoint(checkpoint_dir)
-            if checkpoint is not None:
-                print(f"Resuming from checkpoint {checkpoint}")
-                initial_config = checkpoint
-                if checkpoint.name.startswith("latest"):
-                    self._last_checkpoint = checkpoint
+        self.init_path = Path(init_path) if init_path is not None else None
+        self._last_checkpoint: Optional[Path] = None
+        self.checkpoint_dir = (
+            Path(checkpoint_dir) if checkpoint_dir is not None else None
+        )
+        self.overrides = overrides
+        self.ignore_extra_fields = ignore_extra_fields
+
+        self._config: Optional[C] = None
+        self._schedules: Dict[str, Any] = {}
+        self._state: Optional[S] = None
+        self._deserialize_ctx: Dict[str, Any] = {}
+
+    @property
+    def config(self) -> C:
+        if self._config is None:
+            self._config, self._schedules = self._load_config()
+            self._deserialize_ctx["config"] = self._config
+        return self._config
+
+    @property
+    def state(self) -> S:
+        if self._state is None:
+            self._state = self._load_state()
+            _apply_schedules(self.state, self.config, self._schedules)
+        return self._state
+
+    @property
+    def checkpoint_dir(self) -> Union[Path, None]:
+        return self._checkpoint_dir
+
+    @checkpoint_dir.setter
+    def checkpoint_dir(self, value: Union[Path, None]) -> None:
+        if value is not None:
+            checkpoint = find_latest_checkpoint(value)
+            if checkpoint is not None and checkpoint.name.startswith("latest"):
+                self._last_checkpoint = checkpoint
         else:
             self.checkpoint_dir = None
+        self._checkpoint_dir = value
 
-        if initial_config is None:
-            config_path = None
-            state_path = None
-        elif os.path.isdir(initial_config):
-            config_path = initial_config / "config.ron"
-            state_path = initial_config / "state.ron"
+    def add_ctx(self, key: str, value: Any) -> None:
+        """
+        Add a value to the deserialization context.
+
+        :param key: The key to store the value under.
+        :param value: The value to store.
+        """
+        self._deserialize_ctx[key] = value
+
+    def _load_config(self) -> Tuple[C, Dict[str, Any]]:
+        if self._last_checkpoint is None:
+            path = self.init_path
         else:
-            config_path = initial_config
-            state_path = None
-
-        self.config, self.schedules = _typed_load(
-            config_clz,
-            file=config_path,
-            overrides=overrides or [],
-            allow_missing_version=state_path is not None,
-            ignore_extra_fields=ignore_extra_fields,
+            path = self._last_checkpoint
+        if path is not None and path.is_dir():
+            path = path / "config.ron"
+        return _typed_load(
+            self.config_cls,
+            file=path,
+            overrides=self.overrides or [],
+            allow_missing_version=path is None,
+            ignore_extra_fields=self.ignore_extra_fields,
         )
-        if state_path is None:
-            self.state = self.initial_state()
+
+    def _load_state(self) -> S:
+        if self._last_checkpoint is not None:
+            path = self._last_checkpoint
+        elif self.init_path is not None and self.init_path.is_dir():
+            path = self.init_path
         else:
-            try:
-                self.state = _typed_load(
-                    state_clz,
-                    file=state_path,
-                    config=self.config,
-                    ignore_extra_fields=ignore_extra_fields,
-                )[0]
-            except Exception as e:
-                raise RuntimeError(
-                    f"Failed to load state from {state_path}: {e}"
-                ) from e
-        _apply_schedules(self.state, self.config, self.schedules)
-
-    @abstractmethod
-    def initial_state(self) -> S:
-        pass
-
-    def checkpoint_key(self) -> str:
-        return "step"
-
-    def checkpoint(self, target_dir: str) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            p = Path(tmpdir) / "checkpoint"
-            p.mkdir()
-            _typed_dump(self.config, p / "config.ron", self.schedules)
-            _typed_dump(self.state, p / "state.ron")
-            atomic_move(str(p), target_dir)
+            return self._initial_state(self.config)
+        return _typed_load(
+            self.state_cls,
+            file=path / "state.ron",
+            config=self.config,
+            ignore_extra_fields=self.ignore_extra_fields,
+        )[0]
 
     def step(self) -> None:
-        _apply_schedules(self.state, self.config, self.schedules)
+        """
+        Updates all hyperparameter schedules and persists the current state.
+        """
+        _apply_schedules(self.state, self.config, self._schedules)
         if self.checkpoint_dir is not None:
-            val = getattr(self.state, self.checkpoint_key())
+            val = getattr(self.state, self.checkpoint_key)
             assert isinstance(
                 val, int
-            ), f"checkpoint key `{self.checkpoint_key()}` must be an integer, but found value `{val}` of type `{type(val)}`"
+            ), f"checkpoint key `{self.checkpoint_key}` must be an integer, but found value `{val}` of type `{type(val)}`"
             checkpoint_dir = (
-                self.checkpoint_dir / f"latest-{self.checkpoint_key()}{val:012}"
+                self.checkpoint_dir / f"latest-{self.checkpoint_key}{val:012}"
             )
             if not checkpoint_dir.exists():
                 self.checkpoint(str(checkpoint_dir))
@@ -145,6 +169,19 @@ class HyperState(ABC, Generic[C, S]):
                     shutil.move(str(self._last_checkpoint), tmpdir)
             self._last_checkpoint = checkpoint_dir
             # TODO: persistent checkpoints
+
+    def checkpoint(self, target_dir: str) -> None:
+        """
+        Persist the current state to a checkpoint.
+
+        :param target_dir: The directory to store the checkpoint.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            p = Path(tmpdir) / "checkpoint"
+            p.mkdir()
+            _typed_dump(self.config, p / "config.ron", self._schedules)
+            _typed_dump(self.state, p / "state.ron")
+            atomic_move(str(p), target_dir)
 
     def config_dict(self) -> Any:
         return asdict(self.config, serializers=[VersionedSerializer()])

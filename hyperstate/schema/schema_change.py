@@ -62,11 +62,11 @@ class SchemaChange(ABC):
     def emit_diagnostic(self) -> None:
         severity = self.severity()
         if severity == Severity.INFO:
-            styled_severity = click.style("INFO ", fg="white")
+            styled_severity = click.style("info ", fg="white")
         elif severity == Severity.WARN:
-            styled_severity = click.style("WARN ", fg="yellow")
+            styled_severity = click.style("warn ", fg="yellow")
         else:
-            styled_severity = click.style("ERROR", fg="red")
+            styled_severity = click.style("error", fg="red")
 
         print(
             f"{styled_severity} {self.diagnostic()}: {click.style(self.field_name, fg='cyan')}"

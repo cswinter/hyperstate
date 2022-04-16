@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import hyperstate
+from hyperstate.hyperstate import StateManager
 
 
 @dataclass
@@ -34,20 +35,16 @@ class State:
     step: int = 0
 
 
-class Trainer(hyperstate.HyperState[Config, State]):
-    def initial_state(cls) -> State:
-        return State()
-
-    def take_step(self) -> None:
-        self.state.step += 1
-        self.step()
+def initial_state(cfg: Config) -> State:
+    return State()
 
 
-@hyperstate.stateful_command(Trainer, Config, State)
-def main(trainer: Trainer) -> None:
-    print(trainer.config)
-    print(trainer.state)
-    trainer.take_step()
+@hyperstate.stateful_command(Config, State, initial_state)
+def main(sm: StateManager) -> None:
+    print(sm.config)
+    print(sm.state)
+    sm.state.step += 1
+    sm.step()
 
 
 if __name__ == "__main__":

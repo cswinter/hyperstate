@@ -68,7 +68,7 @@ class SchemaChecker:
             change.emit_diagnostic()
         if self.severity() > Severity.INFO and self.old.version == self.new.version:
             print(
-                click.style("WARN", fg="yellow")
+                click.style("warn", fg="yellow")
                 + "  schema changed but version identical"
             )
 

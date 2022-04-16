@@ -6,7 +6,7 @@ from typing import Any
 
 import numpy as np
 
-from hyperstate.hyperstate import HyperState
+from hyperstate.hyperstate import StateManager
 from hyperstate.lazy import Lazy, Serializable
 
 
@@ -46,12 +46,8 @@ class State(Lazy):
     params: Params
 
 
-class HS(HyperState[Config, State]):
-    def __init__(self, initial_config: str, checkpoint_dir: str):
-        super().__init__(Config, State, initial_config, checkpoint_dir)
-
-    def initial_state(self) -> State:
-        return State(step=0, params=Params())
+def initial_state(cfg: Config) -> State:
+    return State(step=0, params=Params())
 
 
 def test_checkpoint() -> None:
@@ -74,13 +70,17 @@ def test_checkpoint() -> None:
             f.write(textwrap.dedent(config))
         checkpoint_dir = tmpdir + "/checkpoint"
         os.mkdir(checkpoint_dir)
-        hs = HS(tmpdir + "/config.ron", checkpoint_dir)
+        hs = StateManager(
+            Config, State, initial_state, tmpdir + "/config.ron", checkpoint_dir
+        )
         hs.state.step = 50
         hs.state.params.params += 0.1
         hs.step()
 
         # Restore from checkpoint
-        hs2 = HS(tmpdir + "/config.ron", checkpoint_dir)
+        hs2 = StateManager(
+            Config, State, initial_state, tmpdir + "/config.ron", checkpoint_dir
+        )
         assert hs2.state.step == 50
         assert (hs2.state.params.params == hs.state.params.params).all()
         assert hs2.config == Config(
@@ -107,20 +107,6 @@ class MinState(Lazy):
     step: int
 
 
-class MinHS(HyperState[MinConfig, MinState]):
-    def __init__(self, initial_config: str, checkpoint_dir: str):
-        super().__init__(
-            MinConfig,
-            MinState,
-            initial_config,
-            checkpoint_dir,
-            ignore_extra_fields=True,
-        )
-
-    def initial_state(self) -> MinState:
-        return MinState(step=0)
-
-
 def test_ignore_extra_fields() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         # Write initial config file
@@ -141,10 +127,19 @@ def test_ignore_extra_fields() -> None:
             f.write(textwrap.dedent(config))
         checkpoint_dir = tmpdir + "/checkpoint"
         os.mkdir(checkpoint_dir)
-        hs = HS(tmpdir + "/config.ron", checkpoint_dir)
+        hs = StateManager(
+            Config, State, initial_state, tmpdir + "/config.ron", checkpoint_dir
+        )
         hs.state.step = 50
         hs.state.params.params += 0.1
         hs.step()
 
         # Restore from checkpoint
-        MinHS(tmpdir + "/config.ron", checkpoint_dir)
+        StateManager(
+            Config,
+            MinState,
+            lambda _: MinState(step=0),
+            tmpdir + "/config.ron",
+            checkpoint_dir,
+            ignore_extra_fields=True,
+        ).state
