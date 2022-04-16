@@ -472,7 +472,7 @@ def atomic_move(src: str, dst: str) -> None:
             # atomic.  We intersperse a random UUID so if different processes
             # are copying into `<dst>`, they don't overlap in their tmp copies.
             copy_id = uuid.uuid4()
-            tmp_dst = f"{dst}.{copy_id}.tmp" % (dst, copy_id)
+            tmp_dst = f"{dst}.{copy_id}.tmp"
             shutil.copyfile(src, tmp_dst)
 
             # Then do an atomic rename onto the new name, and clean up the
