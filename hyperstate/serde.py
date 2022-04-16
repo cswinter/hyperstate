@@ -189,6 +189,8 @@ def from_dict(
     elif isinstance(clz, EnumMeta):
         return clz(value)
     elif typing.get_origin(clz) == Literal:
+        if isnamedtupleinstance(value) and len(value._fields) == 0:
+            value = value.__class__.__name__
         args = typing.get_args(clz)
         if value not in args:
             raise ValueError(f"{fpath} must be one of {args} but got '{value}'.")
