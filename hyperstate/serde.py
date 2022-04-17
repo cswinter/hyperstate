@@ -25,6 +25,14 @@ import pyron
 T = TypeVar("T")
 
 
+class DeserializeTypeError(Exception):
+    pass
+
+
+class DeserializeValueError(Exception):
+    pass
+
+
 class Serializer(ABC):
     @abstractmethod
     def serialize(
@@ -95,7 +103,9 @@ def asdict(
     ):
         return value
     else:
-        raise TypeError(f"Can't serialize value {value} of type {type(value)}")
+        raise DeserializeTypeError(
+            f"Can't serialize value {value} of type {type(value)}"
+        )
 
 
 def from_dict(
@@ -137,7 +147,7 @@ def from_dict(
         if int(f) == f:
             return int(f)  # type: ignore
         else:
-            raise ValueError(f"Expected {fpath} to be an int, got {value}")
+            raise DeserializeValueError(f"Expected {fpath} to be an int, got {value}")
     elif (
         hasattr(clz, "__args__")
         and len(clz.__args__) == 1  # type: ignore
@@ -161,7 +171,9 @@ def from_dict(
         elif isnamedtupleinstance(value):
             value = value._asdict()
         if not isinstance(value, dict):
-            raise ValueError(f"'{value}' cannot be deserialized as '{clz.__name__}'.")
+            raise DeserializeValueError(
+                f"'{value}' cannot be deserialized as '{clz.__name__}'."
+            )
         kwargs = {}
         remaining_fields = set(clz.__dataclass_fields__.keys())  # type: ignore
         for field_name, v in value.items():
@@ -170,7 +182,7 @@ def from_dict(
                 if ignore_extra_fields:
                     continue
                 else:
-                    raise TypeError(
+                    raise DeserializeTypeError(
                         f"{clz.__module__}.{clz.__name__} has no attribute {field_name}."
                     )
             remaining_fields.remove(field_name)
@@ -185,7 +197,7 @@ def from_dict(
             instance = clz(**kwargs)  # type: ignore
             return instance
         except TypeError as e:
-            raise TypeError(f"Failed to initialize '{clz.__name__}': {e}")
+            raise DeserializeTypeError(f"Failed to initialize '{clz.__name__}': {e}")
     elif isinstance(clz, EnumMeta):
         return clz(value)
     elif typing.get_origin(clz) == Literal:
@@ -193,11 +205,13 @@ def from_dict(
             value = value.__class__.__name__
         args = typing.get_args(clz)
         if value not in args:
-            raise ValueError(f"{fpath} must be one of {args} but got '{value}'.")
+            raise DeserializeValueError(
+                f"{fpath} must be one of {args} but got '{value}'."
+            )
         return value  # type: ignore
     if isnamedtupleinstance(value) and len(value) == 0:
         value = value.__class__.__name__
-    raise TypeError(
+    raise DeserializeTypeError(
         f"Failed to deserialize '{fpath}': {repr(value)} is not a {_qualified_name(clz)}"
     )
 

@@ -8,6 +8,7 @@ from hyperstate.hyperstate import (
     FieldsNotFoundError,
     StateManager,
 )
+from hyperstate.serde import DeserializeTypeError, DeserializeValueError
 
 T = TypeVar("T")
 C = TypeVar("C")
@@ -154,7 +155,7 @@ def _print_config_exception(e: Exception, verbose: bool) -> None:
 
             traceback.print_exc()
         sys.exit(1)
-    elif isinstance(e, TypeError) or isinstance(e, ValueError):
+    elif isinstance(e, DeserializeTypeError) or isinstance(e, DeserializeValueError):
         print(click.style("error", fg="red") + ": " + str(e))
         if verbose:
             import traceback
