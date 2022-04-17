@@ -110,7 +110,7 @@ class StateManager(Generic[C, S]):
             if checkpoint is not None and checkpoint.name.startswith("latest"):
                 self._last_checkpoint = checkpoint
         else:
-            self.checkpoint_dir = None
+            self._checkpoint_dir = None
         self._checkpoint_dir = value
 
     def set_deserialize_ctx(self, key: str, value: Any) -> None:
