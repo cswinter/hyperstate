@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import tempfile
 import textwrap
 import os
-from typing import Any
+from typing import Any, Dict
 
 import numpy as np
 
@@ -26,7 +26,7 @@ class Config:
     ppo: PPO
 
 
-class Params(Serializable):
+class Params(Serializable[Config, "State"]):
     def __init__(self) -> None:
         self.params = np.zeros(64)
 
@@ -34,7 +34,9 @@ class Params(Serializable):
         return self.params
 
     @classmethod
-    def deserialize(clz, state_dict: np.ndarray, config: Any, state: Any) -> "Params":
+    def deserialize(
+        clz, state_dict: np.ndarray, config: Config, state: "State", ctx: Dict[str, Any]
+    ) -> "Params":
         result = Params()
         result.params = state_dict
         return result

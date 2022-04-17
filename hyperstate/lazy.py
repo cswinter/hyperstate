@@ -18,45 +18,60 @@ from hyperstate.serde import Serializer, Deserializer
 
 T = TypeVar("T")
 C = TypeVar("C")
+S = TypeVar("S")
 
 # TODO: blob, lazy, and serializable should be orthogonal
-class Serializable(ABC):
+class Serializable(ABC, Generic[C, S]):
     @abstractmethod
     def serialize(self) -> Any:
         pass
 
     @classmethod
     @abstractmethod
-    def deserialize(clz: Type[T], state_dict: Any, config: Any, state: Any) -> T:
+    def deserialize(
+        cls: Type[T], state_dict: Any, config: C, state: S, ctx: Dict[str, Any]
+    ) -> T:
         pass
 
 
 class Lazy:
-    def __init__(self) -> None:
-        self._unloaded_lazy_fields: Any = {}
-
     def __getattribute__(self, name: str) -> Any:
         try:
             unloaded = super(Lazy, self).__getattribute__("_unloaded_lazy_fields")
-            if name in unloaded:
-                ser_clz, config, path, legacy_pickle = unloaded[name]
-                # clz = self.__annotations__[name]
-                with open(path, "rb") as f:
-                    # TODO: deprecate
-                    if legacy_pickle:
-                        import pickle
-
-                        state_dict = pickle.load(f)
-                    else:
-                        # TODO: this doesn't work for tensors :( need custom encoder/decoder that converts numpy arrays back into tensors?
-                        state_dict = msgpack.unpack(f, object_hook=msgpack_numpy.decode)
-                # TODO: recursion check
-                value = ser_clz.deserialize(state_dict, config, self)
-                self.__setattr__(name, value)
-                del unloaded[name]
         except AttributeError:
-            pass
+            unloaded = None
+        if unloaded is not None and name in unloaded:
+            ser_clz, config, path, legacy_pickle = unloaded[name]
+            with open(path, "rb") as f:
+                # TODO: deprecate
+                if legacy_pickle:
+                    import pickle
+
+                    state_dict = pickle.load(f)
+                else:
+                    # TODO: this doesn't work for tensors :( need custom encoder/decoder that converts numpy arrays back into tensors?
+                    state_dict = msgpack.unpack(f, object_hook=msgpack_numpy.decode)
+            # TODO: recursion check
+            value = ser_clz.deserialize(
+                state_dict,
+                config,
+                self,
+                self._deserialize_ctx if hasattr(self, "_deserialize_ctx") else {},
+            )
+            self.__setattr__(name, value)
+            del unloaded[name]
         return super(Lazy, self).__getattribute__(name)
+
+    def set_deserialize_ctx(self, key: str, value: Any) -> None:
+        """
+        Add a value to the deserialization context.
+
+        :param key: The key to store the value under.
+        :param value: The value to store.
+        """
+        if not hasattr(self, "_deserialize_ctx"):
+            self._deserialize_ctx: Dict[str, Any] = {}
+        self._deserialize_ctx[key] = value
 
 
 @dataclass
@@ -69,15 +84,15 @@ class LazyDeserializer(Deserializer, Generic[C]):
 
     def deserialize(
         self,
-        clz: Type[T],
+        cls: Type[T],
         value: Any,
         path: str,
     ) -> Tuple[Optional[T], bool, bool]:
-        if inspect.isclass(clz) and issubclass(clz, Serializable):
+        if inspect.isclass(cls) and issubclass(cls, Serializable):
             assert value == "<BLOB>" or value == "<blob:msgpack>"
             filepath = path.replace(".", "/").replace("[", "/").replace("]", "")
             self.lazy_fields[path] = (
-                clz,
+                cls,
                 self.config,
                 self.path / filepath,
                 bool(value == "<BLOB>"),

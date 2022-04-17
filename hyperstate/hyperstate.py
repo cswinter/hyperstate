@@ -81,13 +81,11 @@ class StateManager(Generic[C, S]):
         self._config: Optional[C] = None
         self._schedules: Dict[str, Any] = {}
         self._state: Optional[S] = None
-        self._deserialize_ctx: Dict[str, Any] = {}
 
     @property
     def config(self) -> C:
         if self._config is None:
             self._config, self._schedules = self._load_config()
-            self._deserialize_ctx["config"] = self._config
         return self._config
 
     @property
@@ -110,15 +108,6 @@ class StateManager(Generic[C, S]):
         else:
             self.checkpoint_dir = None
         self._checkpoint_dir = value
-
-    def add_ctx(self, key: str, value: Any) -> None:
-        """
-        Add a value to the deserialization context.
-
-        :param key: The key to store the value under.
-        :param value: The value to store.
-        """
-        self._deserialize_ctx[key] = value
 
     def _load_config(self) -> Tuple[C, Dict[str, Any]]:
         if self._last_checkpoint is None:
