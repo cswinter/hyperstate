@@ -182,6 +182,7 @@ def from_dict(
         for field_name, v in value.items():
             if isinstance(v, dict) and WEAK_REF in v:
                 weak_refs[field_name] = v
+                continue
             field = clz.__dataclass_fields__.get(field_name)  # type: ignore
             if field is None:
                 if ignore_extra_fields:
