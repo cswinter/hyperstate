@@ -91,7 +91,7 @@ class ChangeDefault(RewriteRule):
 
     def apply(self, state_dict: Any) -> Any:
         existing_value, ok = _remove(state_dict, self.field)
-        if not ok:
+        if not ok or (isinstance(existing_value, dict) and WEAK_REF in existing_value):
             _insert(state_dict, self.field, self.old_default, create_new=False)
         else:
             _insert(state_dict, self.field, existing_value)

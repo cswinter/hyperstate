@@ -515,6 +515,11 @@ class TrainerV1(Versioned):
                 ChangeDefault(
                     field=("fastnet", "nlayer"), old_default=1, new_default=2
                 ),
+                ChangeDefault(
+                    field=("fastnet",),
+                    old_default=Net(dmodel=32),
+                    new_default=NetV1(nhead=4, dmodel=16),
+                ),
                 AddDefault(field=("vf", "nhead"), default=2),
                 ChangeDefault(field=("vf", "nlayer"), old_default=1, new_default=2),
             ],
@@ -530,6 +535,9 @@ def test_trainer_v0_to_v1() -> None:
             DefaultValueChanged(field=("net", "nlayer"), old=1, new=2),
             DefaultValueRemoved(field=("fastnet", "nhead"), old=2),
             DefaultValueChanged(field=("fastnet", "nlayer"), old=1, new=2),
+            DefaultValueChanged(
+                field=("fastnet",), old=Net(dmodel=32), new=NetV1(dmodel=16, nhead=4)
+            ),
             DefaultValueRemoved(field=("vf", "nhead"), old=2),
             DefaultValueChanged(field=("vf", "nlayer"), old=1, new=2),
         ],
@@ -538,6 +546,11 @@ def test_trainer_v0_to_v1() -> None:
             ChangeDefault(field=("net", "nlayer"), old_default=1, new_default=2),
             AddDefault(field=("fastnet", "nhead"), default=2),
             ChangeDefault(field=("fastnet", "nlayer"), old_default=1, new_default=2),
+            ChangeDefault(
+                field=("fastnet",),
+                old_default=Net(dmodel=32),
+                new_default=NetV1(nhead=4, dmodel=16),
+            ),
             AddDefault(field=("vf", "nhead"), default=2),
             ChangeDefault(field=("vf", "nlayer"), old_default=1, new_default=2),
         ],
@@ -560,6 +573,11 @@ def test_trainer_v1_load_v0() -> None:
         net=NetV1(dmodel=5, nhead=2, nlayer=1),
         vf=NetV1(dmodel=32, nhead=2, nlayer=1),
         fastnet=NetV1(dmodel=16, nhead=2, nlayer=1),
+    )
+    config2 = "Trainer(version: 0, net: (dmodel: 5))"
+    assert loads(TrainerV1, config2) == TrainerV1(
+        net=NetV1(dmodel=5, nhead=2, nlayer=1),
+        fastnet=NetV1(dmodel=32, nhead=2, nlayer=1),
     )
 
 

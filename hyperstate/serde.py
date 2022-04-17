@@ -167,7 +167,8 @@ def from_dict(
         # TODO: recurse
         return value  # type: ignore
     elif is_dataclass(clz):
-        # TODO: better error
+        if is_dataclass(value):
+            value = asdict(value)
         if value == ():
             value = {}
         elif isnamedtupleinstance(value):
@@ -257,8 +258,8 @@ def _try_create_defaults(
                 kwargs[field.name] = field.type(**_kwargs)
             else:
                 still_missing.append(_field_name)
-        elif _field_name in weak_refs:
-            kwargs[field.name] = weak_refs[_field_name][WEAK_REF]
+        elif _field_name in weak_refs and WEAK_REF not in weak_refs[_field_name]:
+            kwargs[field.name] = weak_refs[_field_name]
 
     if len(still_missing) > 0:
         prefix = f"{fpath}." if fpath else ""

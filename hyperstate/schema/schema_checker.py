@@ -151,17 +151,13 @@ class SchemaChecker:
                                     )
                                 )
                         elif oldfield.has_default and oldfield.default != field.default:
-                            if is_dataclass(field.default):
-                                # TODO: perform comparison against namedtuple
-                                pass
-                            else:
-                                self.changes.append(
-                                    DefaultValueChanged(
-                                        tuple(path + [name]),
-                                        oldfield.default,
-                                        field.default,
-                                    )
+                            self.changes.append(
+                                DefaultValueChanged(
+                                    tuple(path + [name]),
+                                    oldfield.default,
+                                    field.default,
                                 )
+                            )
             # Check for removed fields
             for name, field in old.fields.items():
                 if name not in new.fields:
