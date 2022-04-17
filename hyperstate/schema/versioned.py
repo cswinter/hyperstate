@@ -67,7 +67,9 @@ class VersionedDeserializer(Deserializer):
                 if self.allow_missing_version:
                     version = 0
                 else:
-                    raise ValueError(f"Versioned config file missing `version` field.")
+                    raise ValueError(
+                        f"Value for versioned class {clz.__name__} missing `version` field."
+                    )
             value = clz._apply_upgrades(state_dict=value, version=version)
         return None, False, False
 
