@@ -49,7 +49,7 @@ class StateManager(Generic[C, S]):
         config_cls: Type[C],
         state_cls: Type[S],
         initial_state: Callable[[C, Dict[str, Any]], S],
-        init_path: Union[str, Path, None],
+        init_path: Union[str, Path, None] = None,
         checkpoint_dir: Union[str, Path, None] = None,
         overrides: Optional[List[str]] = None,
         ignore_extra_fields: bool = False,
