@@ -102,6 +102,7 @@ class StateManager(Generic[C, S]):
     @checkpoint_dir.setter
     def checkpoint_dir(self, value: Union[Path, None]) -> None:
         if value is not None:
+            value.mkdir(parents=True, exist_ok=True)
             checkpoint = find_latest_checkpoint(value)
             if checkpoint is not None and checkpoint.name.startswith("latest"):
                 self._last_checkpoint = checkpoint
