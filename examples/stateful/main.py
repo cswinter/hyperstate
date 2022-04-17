@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Any, Dict
 import hyperstate
 from hyperstate.hyperstate import StateManager
 
@@ -35,7 +36,7 @@ class State:
     step: int = 0
 
 
-def initial_state(cfg: Config) -> State:
+def initial_state(cfg: Config, ctx: Dict[str, Any]) -> State:
     return State()
 
 

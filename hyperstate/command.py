@@ -1,5 +1,5 @@
 import argparse
-from typing import Any, Callable, List, Type, TypeVar
+from typing import Any, Callable, Dict, List, Type, TypeVar
 import sys
 import click
 import hyperstate
@@ -82,7 +82,7 @@ def command(cls: Type[C]) -> Callable[[Callable[[C], T]], Callable[[], T]]:
 def stateful_command(
     cfg_cls: Type[C],
     state_cls: Type[S],
-    initial_state: Callable[[C], S],
+    initial_state: Callable[[C, Dict[str, Any]], S],
     checkpoint_key: str = "step",
 ) -> Callable[[Callable[[StateManager[C, S]], T]], Callable[[], T]]:
 
