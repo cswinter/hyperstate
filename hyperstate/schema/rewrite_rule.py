@@ -219,7 +219,7 @@ def _remove_schema(schema: types.Type, path: Sequence[str]) -> Optional[types.Fi
             return None
         if field not in schema.fields:
             return None
-        schema = schema.fields[field].type
+        schema = types._unwrap_container_type(schema.fields[field].type)
     if not isinstance(schema, types.Struct):
         return None
     if path[-1] not in schema.fields:
@@ -241,7 +241,7 @@ def _insert_schema(schema: types.Type, path: Sequence[str], field: types.Field) 
                 has_default=False,
                 default=None,
             )
-        schema = schema.fields[field_name].type
+        schema = types._unwrap_container_type(schema.fields[field_name].type)
     if not isinstance(schema, types.Struct):
         return
     schema.fields[path[-1]] = field

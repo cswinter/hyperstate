@@ -86,7 +86,7 @@ class SchemaChecker:
                 print("    ],")
             if self.severity() > Severity.INFO and self.old.version == self.new.version:
                 click.secho(
-                    f"- bump version to {self.old.version or -1 + 1}",
+                    f"- bump version to {(self.old.version or 0) + 1}",
                     fg="white",
                     bold=True,
                 )
