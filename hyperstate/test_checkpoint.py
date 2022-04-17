@@ -48,7 +48,7 @@ class State(Lazy):
     params: Params
 
 
-def initial_state(cfg: Config) -> State:
+def initial_state(cfg: Config, ctx: Dict[str, Any]) -> State:
     return State(step=0, params=Params())
 
 
@@ -109,6 +109,10 @@ class MinState(Lazy):
     step: int
 
 
+def initial_min_state(cfg: Config, ctx: Dict[str, Any]) -> MinState:
+    return MinState(step=0)
+
+
 def test_ignore_extra_fields() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         # Write initial config file
@@ -140,7 +144,7 @@ def test_ignore_extra_fields() -> None:
         StateManager(
             Config,
             MinState,
-            lambda _: MinState(step=0),
+            initial_min_state,
             tmpdir + "/config.ron",
             checkpoint_dir,
             ignore_extra_fields=True,

@@ -33,7 +33,7 @@ from hyperstate.serde import (
     asdict,
 )
 import hyperstate.serde as serde
-from .lazy import LazyDeserializer, LazySerializer
+from .lazy import Lazy, LazyDeserializer, LazySerializer
 import pyron
 
 from hyperstate.schedule import Schedule, _parse_schedule
@@ -48,7 +48,7 @@ class StateManager(Generic[C, S]):
         self,
         config_cls: Type[C],
         state_cls: Type[S],
-        initial_state: Callable[[C], S],
+        initial_state: Callable[[C, Dict[str, Any]], S],
         init_path: Union[str, Path, None],
         checkpoint_dir: Union[str, Path, None] = None,
         overrides: Optional[List[str]] = None,
@@ -81,6 +81,7 @@ class StateManager(Generic[C, S]):
         self._config: Optional[C] = None
         self._schedules: Dict[str, Any] = {}
         self._state: Optional[S] = None
+        self._deserialize_ctx: Dict[str, Any] = {}
 
     @property
     def config(self) -> C:
@@ -92,8 +93,10 @@ class StateManager(Generic[C, S]):
     def state(self) -> S:
         if self._state is None:
             self._state = self._load_state()
+            if isinstance(self._state, Lazy):
+                self._state._deserialize_ctx = {**self._deserialize_ctx}
             _apply_schedules(self.state, self.config, self._schedules)
-        return self._state
+        return self._state  # type: ignore
 
     @property
     def checkpoint_dir(self) -> Union[Path, None]:
@@ -109,6 +112,15 @@ class StateManager(Generic[C, S]):
         else:
             self.checkpoint_dir = None
         self._checkpoint_dir = value
+
+    def set_deserialize_ctx(self, key: str, value: Any) -> None:
+        """
+        Add a value to the deserialization context.
+
+        :param key: The key to store the value under.
+        :param value: The value to store.
+        """
+        self._deserialize_ctx[key] = value
 
     def _load_config(self) -> Tuple[C, Dict[str, Any]]:
         if self._last_checkpoint is None:
@@ -131,7 +143,7 @@ class StateManager(Generic[C, S]):
         elif self.init_path is not None and self.init_path.is_dir():
             path = self.init_path
         else:
-            return self._initial_state(self.config)
+            return self._initial_state(self.config, self._deserialize_ctx)
         return _typed_load(
             self.state_cls,
             file=path / "state.ron",
