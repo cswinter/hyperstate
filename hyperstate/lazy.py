@@ -89,13 +89,26 @@ class LazyDeserializer(Deserializer, Generic[C]):
         path: str,
     ) -> Tuple[Optional[T], bool, bool]:
         if inspect.isclass(cls) and issubclass(cls, Serializable):
-            assert value == "<BLOB>" or value == "<blob:msgpack>"
-            filepath = path.replace(".", "/").replace("[", "/").replace("]", "")
+            assert (
+                value == "<BLOB>"
+                or value == "<blob:pickle>"
+                or value == "<blob:msgpack>"
+            )
+            if value == "<BLOB>":
+                filepath = path.replace(".", "/").replace("[", "/").replace("]", "")
+            elif value == "<blob:pickle>":
+                filepath = (
+                    "state." + path.replace("[", "_").replace("]", "") + ".pickle"
+                )
+            else:
+                filepath = (
+                    "state." + path.replace("[", "_").replace("]", "") + ".msgpack"
+                )
             self.lazy_fields[path] = (
                 cls,
                 self.config,
                 self.path / filepath,
-                bool(value == "<BLOB>"),
+                value == "<BLOB>" or value == "<blob:pickle>",
             )
             return None, True, True
         return None, False, False
@@ -114,8 +127,9 @@ class LazySerializer(Serializer):
         if isinstance(value, Serializable):
             import dill
 
+            path = "state." + path.replace("[", "_").replace("]", "") + ".pickle"
             self.blobs[path] = dill.dumps(value.serialize())
-            return "<BLOB>", True
+            return "<blob:pickle>", True
             # TODO: make msgpack work with pytorch tensors
             # state_dict = _dict_to_cpu(value.state_dict())
             # blobs[field_name] = msgpack.packb(state_dict, default=msgpack_numpy.encode)
