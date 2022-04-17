@@ -133,7 +133,8 @@ class StateManager(Generic[C, S]):
             self.config_cls,
             file=path,
             overrides=self.overrides or [],
-            allow_missing_version=path is None or not isinstance(self.config_cls, Versioned),
+            allow_missing_version=path is None
+            or not isinstance(self.config_cls, Versioned),
             ignore_extra_fields=self.ignore_extra_fields,
         )
 
