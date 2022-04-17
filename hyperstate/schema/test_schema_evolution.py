@@ -171,7 +171,9 @@ class ConfigV3(Versioned):
         return {
             2: [
                 CheckValue(field=("optimizer",), allowed_values={"adam", "sgd"}),
-                ChangeDefault(field=("optimizer",), new_default="adam"),
+                ChangeDefault(
+                    field=("optimizer",), old_default="sgd", new_default="adam"
+                ),
                 RenameField(old_field=("learning_rate",), new_field=("lr",)),
             ],
         }
@@ -192,7 +194,7 @@ def test_config_v2_to_v3() -> None:
         ],
         [
             CheckValue(field=("optimizer",), allowed_values={"adam", "sgd"}),
-            ChangeDefault(field=("optimizer",), new_default="adam"),
+            ChangeDefault(field=("optimizer",), old_default="sgd", new_default="adam"),
             RenameField(old_field=("learning_rate",), new_field=("lr",)),
         ],
         Severity.WARN,
@@ -467,6 +469,100 @@ def test_config_v5_to_v6() -> None:
     )
 
 
+@dataclass
+class Net:
+    dmodel: int
+    nhead: int = 2
+    nlayer: int = 1
+
+
+@dataclass
+class Trainer(Versioned):
+    net: Net
+    fastnet: Net = Net(dmodel=32)
+    vf: Optional[Net] = None
+
+    @classmethod
+    def version(clz) -> int:
+        return 0
+
+
+@dataclass
+class NetV1:
+    nhead: int
+    dmodel: int = 512
+    nlayer: int = 2
+
+
+# TODO: also test removing default
+@dataclass
+class TrainerV1(Versioned):
+    net: NetV1
+    fastnet: NetV1 = NetV1(dmodel=16, nhead=4)
+    vf: Optional[NetV1] = None
+
+    @classmethod
+    def version(clz) -> int:
+        return 1
+
+    @classmethod
+    def upgrade_rules(clz) -> Dict[int, List[RewriteRule]]:
+        return {
+            0: [
+                AddDefault(field=("net", "nhead"), default=2),
+                ChangeDefault(field=("net", "nlayer"), old_default=1, new_default=2),
+                AddDefault(field=("fastnet", "nhead"), default=2),
+                ChangeDefault(
+                    field=("fastnet", "nlayer"), old_default=1, new_default=2
+                ),
+                AddDefault(field=("vf", "nhead"), default=2),
+                ChangeDefault(field=("vf", "nlayer"), old_default=1, new_default=2),
+            ],
+        }
+
+
+def test_trainer_v0_to_v1() -> None:
+    check_schema(
+        Trainer,
+        TrainerV1,
+        [
+            DefaultValueRemoved(field=("net", "nhead"), old=2),
+            DefaultValueChanged(field=("net", "nlayer"), old=1, new=2),
+            DefaultValueRemoved(field=("fastnet", "nhead"), old=2),
+            DefaultValueChanged(field=("fastnet", "nlayer"), old=1, new=2),
+            DefaultValueRemoved(field=("vf", "nhead"), old=2),
+            DefaultValueChanged(field=("vf", "nlayer"), old=1, new=2),
+        ],
+        [
+            AddDefault(field=("net", "nhead"), default=2),
+            ChangeDefault(field=("net", "nlayer"), old_default=1, new_default=2),
+            AddDefault(field=("fastnet", "nhead"), default=2),
+            ChangeDefault(field=("fastnet", "nlayer"), old_default=1, new_default=2),
+            AddDefault(field=("vf", "nhead"), default=2),
+            ChangeDefault(field=("vf", "nlayer"), old_default=1, new_default=2),
+        ],
+        Severity.WARN,
+    )
+    automatic_upgrade(
+        Trainer(net=Net(dmodel=5)),
+        TrainerV1(
+            net=NetV1(dmodel=5, nlayer=1, nhead=2),
+            fastnet=NetV1(dmodel=32, nlayer=1, nhead=2),
+        ),
+    )
+
+
+def test_trainer_v1_load_v0() -> None:
+    config1 = (
+        "Trainer(version: 0, net: (dmodel: 5), vf: (dmodel: 32), fastnet: (dmodel: 16))"
+    )
+    assert loads(TrainerV1, config1) == TrainerV1(
+        net=NetV1(dmodel=5, nhead=2, nlayer=1),
+        vf=NetV1(dmodel=32, nhead=2, nlayer=1),
+        fastnet=NetV1(dmodel=16, nhead=2, nlayer=1),
+    )
+
+
 def test_serde_upgrade() -> None:
     config_v2 = ConfigV2Info(steps=1, learning_rate=0.1, batch_size=32, epochs=10)
     serialized = dumps(config_v2)
@@ -524,7 +620,7 @@ def automatic_upgrade(old: Any, new: Any) -> None:
     checker = SchemaChecker(old_type, NewWithUpgradeRules, perform_upgrade=True)
     if checker.severity() >= Severity.WARN:
         checker.print_report()
-    assert checker.severity() == Severity.INFO
+    assert checker.severity() >= Severity.INFO
 
     serialized = dumps(old)
     new_with_upgrade_rules = loads(NewWithUpgradeRules, serialized)

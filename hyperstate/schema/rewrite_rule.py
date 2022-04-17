@@ -1,8 +1,11 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, replace
 from typing import List, Optional, Sequence, Set, Tuple, Dict, Any, Callable
+from venv import create
 
 from hyperstate.schema import types
+
+WEAK_REF = "!weak ref"
 
 
 class RewriteRule(ABC):
@@ -83,12 +86,13 @@ class MapFieldValue(RewriteRule):
 @dataclass
 class ChangeDefault(RewriteRule):
     field: Sequence[str]
+    old_default: Any
     new_default: Any
 
     def apply(self, state_dict: Any) -> Any:
         existing_value, ok = _remove(state_dict, self.field)
         if not ok:
-            _insert(state_dict, self.field, self.new_default)
+            _insert(state_dict, self.field, self.old_default, create_new=False)
         else:
             _insert(state_dict, self.field, existing_value)
         return state_dict
@@ -96,6 +100,7 @@ class ChangeDefault(RewriteRule):
     def apply_to_schema(self, schema: types.Type) -> None:
         field = _remove_schema(schema, self.field)
         assert field is not None, f"Field {self.field} not found in schema"
+        assert field.default == self.old_default, f"Default value mismatch"
         _insert_schema(schema, self.field, replace(field, default=self.new_default))
 
 
@@ -106,7 +111,9 @@ class AddDefault(RewriteRule):
 
     def apply(self, state_dict: Any) -> Any:
         value, present = _remove(state_dict, self.field)
-        _insert(state_dict, self.field, value if present else self.default)
+        _insert(
+            state_dict, self.field, value if present else self.default, create_new=False
+        )
         return state_dict
 
     def apply_to_schema(self, schema: types.Type) -> None:
@@ -185,7 +192,7 @@ def _remove(state_dict: Dict[str, Any], path: Sequence[str]) -> Tuple[Any, bool]
         if field not in state_dict:
             return None, False
         state_dict = state_dict[field]
-    if path[-1] not in state_dict:
+    if not isinstance(state_dict, dict) or path[-1] not in state_dict:
         return None, False
     value = state_dict[path[-1]]
     del state_dict[path[-1]]
@@ -203,12 +210,24 @@ def _get(state_dict: Dict[str, Any], path: Sequence[str]) -> Tuple[Any, bool]:
     return state_dict[path[-1]], True
 
 
-def _insert(state_dict: Dict[str, Any], path: Sequence[str], value: Any) -> None:
+def _insert(
+    state_dict: Dict[str, Any],
+    path: Sequence[str],
+    value: Any,
+    create_new: bool = True,
+) -> None:
     assert len(path) > 0
     for field in path[:-1]:
         if field not in state_dict:
-            state_dict[field] = {}
+            if create_new:
+                state_dict[field] = {}
+            else:
+                state_dict[field] = {WEAK_REF: True}
         state_dict = state_dict[field]
+        if not isinstance(state_dict, dict):
+            return
+        if create_new and WEAK_REF in state_dict:
+            del state_dict[WEAK_REF]
     state_dict[path[-1]] = value
 
 

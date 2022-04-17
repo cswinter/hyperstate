@@ -22,6 +22,8 @@ import typing
 
 import pyron
 
+from hyperstate.schema.rewrite_rule import WEAK_REF
+
 T = TypeVar("T")
 
 
@@ -176,7 +178,10 @@ def from_dict(
             )
         kwargs = {}
         remaining_fields = set(clz.__dataclass_fields__.keys())  # type: ignore
+        weak_refs = {}
         for field_name, v in value.items():
+            if isinstance(v, dict) and WEAK_REF in v:
+                weak_refs[field_name] = v
             field = clz.__dataclass_fields__.get(field_name)  # type: ignore
             if field is None:
                 if ignore_extra_fields:
@@ -192,7 +197,7 @@ def from_dict(
                 deserializers=deserializers,
                 fpath=f"{fpath}.{field_name}" if fpath else field_name,
             )
-        _try_create_defaults(clz, kwargs, remaining_fields, fpath)
+        _try_create_defaults(clz, kwargs, remaining_fields, fpath, weak_refs)
         try:
             instance = clz(**kwargs)  # type: ignore
             return instance
@@ -221,7 +226,14 @@ def _try_create_defaults(
     kwargs: Dict[str, Any],
     remaining_fields: Iterable[Any],
     fpath: str,
+    # weak_refs is values which should only be used if a dataclass is
+    weak_refs: Dict[str, Any],
 ) -> Any:
+    """
+    Recursively initializes value for dataclass fields without default value with default constructor.
+    Errors if any leaf fields do not have a default value.
+    `weak_refs` contains values which should override defaults in any leafs that are constructed.
+    """
     still_missing = []
     for _field_name in remaining_fields:
         field = cls.__dataclass_fields__.get(_field_name)
@@ -233,15 +245,19 @@ def _try_create_defaults(
                     if f.default is MISSING and f.default_factory is MISSING
                 ]
                 _kwargs: Dict[str, Any] = {}
+                _weak_refs = weak_refs.get(_field_name, {})
                 _try_create_defaults(
                     field.type,
                     _kwargs,
                     _missing_defaults,
                     f"{fpath}.{_field_name}" if fpath else _field_name,
+                    weak_refs=_weak_refs,
                 )
                 kwargs[field.name] = field.type(**_kwargs)
             else:
                 still_missing.append(_field_name)
+        elif _field_name in weak_refs:
+            kwargs[field.name] = weak_refs[_field_name][WEAK_REF]
 
     if len(still_missing) > 0:
         prefix = f"{fpath}." if fpath else ""

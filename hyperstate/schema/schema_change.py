@@ -130,7 +130,7 @@ class DefaultValueChanged(SchemaChange):
         return f"default value changed from {self.old} to {self.new}"
 
     def proposed_fix(self) -> RewriteRule:
-        return ChangeDefault(self.field, self.new)
+        return ChangeDefault(self.field, self.old, self.new)
 
 
 @dataclass(eq=True, frozen=True)
