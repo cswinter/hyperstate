@@ -134,38 +134,76 @@ def from_dict(
         ret = ret or _ret
     if ret:
         return _value  # type: ignore
+
+    if typing.get_origin(clz) == typing.Union:
+        ustr = str in clz.__args__  # type: ignore
+        ufloat = float in clz.__args__  # type: ignore
+        uint = int in clz.__args__  # type: ignore
+    else:
+        ustr = False
+        ufloat = False
+        uint = False
+
     if inspect.isclass(clz) and isinstance(value, clz):
         return value
-    elif clz == str and isnamedtupleinstance(value) and len(value._fields) == 0:
+    elif (
+        (clz == str or ustr) and isnamedtupleinstance(value) and len(value._fields) == 0
+    ):
         return value.__class__.__name__  # type: ignore
-    elif clz == float and isinstance(value, int):
+    elif (clz == float or ufloat) and isinstance(value, int):
         return float(value)  # type: ignore
-    elif clz == int and isinstance(value, float) and int(value) == value:
+    elif (clz == int or uint) and isinstance(value, float) and int(value) == value:
         return int(value)  # type: ignore
-    elif clz == float and isinstance(value, str):
+    elif (clz == float or ufloat) and isinstance(value, str):
         return float(value)  # type: ignore
-    elif clz == int and isinstance(value, str):
+    elif (clz == int or uint) and isinstance(value, str):
         f = float(value)
         if int(f) == f:
             return int(f)  # type: ignore
         else:
             raise DeserializeValueError(f"Expected {fpath} to be an int, got {value}")
+    elif typing.get_origin(clz) == typing.Union:
+        if isinstance(value, dict):
+            if "!__name__" in value:
+                for arg in clz.__args__:  # type: ignore
+                    if value["!__name__"] == arg.__name__:
+                        return from_dict(arg, value, deserializers, fpath, ignore_extra_fields) # type: ignore
+            for arg in clz.__args__:  # type: ignore
+                if hasattr(arg, "__args__") and arg.get_origin() == typing.Dict:
+                    return from_dict(  # type: ignore
+                        arg, value, deserializers, fpath, ignore_extra_fields
+                    )
+        elif isinstance(value, list):
+            for arg in clz.__args__:  # type: ignore
+                if hasattr(arg, "__args__") and arg.get_origin() == typing.List:
+                    return from_dict(  # type: ignore
+                        arg, value, deserializers, fpath, ignore_extra_fields
+                    )
+        # TODO: Union with other types (Literal, ...)
+        if isinstance(value, dict) and "!__name__" in value:
+            fields = {k: v for k, v in value.items() if k != "!__name__"}
+            value = namedtuple(value["!__name__"], fields.keys())(**fields)
+        raise DeserializeValueError(
+            f"Expected {fpath} to be one of {clz.__args__}, got {value}"  # type: ignore
+        )
+
     elif (
         hasattr(clz, "__args__")
         and len(clz.__args__) == 1  # type: ignore
         and clz == List[clz.__args__]  # type: ignore
         and isinstance(value, list)
     ):
-        # TODO: recurse
-        return value  # type: ignore
+        return [from_dict(clz.__args__[0], v, deserializers, fpath + f"[{i}]") for i, v in enumerate(value)]  # type: ignore
     elif (
         hasattr(clz, "__args__")
         and len(clz.__args__) == 2  # type: ignore
         and clz == Dict[clz.__args__]  # type: ignore
         and isinstance(value, dict)
     ):
-        # TODO: recurse
-        return value  # type: ignore
+        return {
+            k: from_dict(clz.__args__[1], v, deserializers, fpath=f"{fpath}.{k}")  # type: ignore
+            for k, v in value.items()
+        }
     elif is_dataclass(clz):
         if is_dataclass(value):
             value = asdict(value)
@@ -181,6 +219,8 @@ def from_dict(
         remaining_fields = set(clz.__dataclass_fields__.keys())  # type: ignore
         weak_refs = {}
         for field_name, v in value.items():
+            if field_name == "!__name__":
+                continue
             if isinstance(v, dict) and WEAK_REF in v:
                 weak_refs[field_name] = v
                 continue
@@ -216,6 +256,9 @@ def from_dict(
                 f"{fpath} must be one of {args} but got '{value}'."
             )
         return value  # type: ignore
+    if isinstance(value, dict) and "!__name__" in value:
+        fields = {k: v for k, v in value.items() if k != "!__name__"}
+        value = namedtuple(value["!__name__"], fields.keys())(**fields)
     if isnamedtupleinstance(value) and len(value) == 0:
         value = value.__class__.__name__
     raise DeserializeTypeError(
@@ -278,7 +321,10 @@ def loads(
     if deserializers is None:
         deserializers = []
     return from_dict(
-        clz, pyron.loads(data), deserializers, ignore_extra_fields=ignore_extra_fields
+        clz,
+        pyron.loads(data, preserve_class_names=True),
+        deserializers,
+        ignore_extra_fields=ignore_extra_fields,
     )
 
 
@@ -291,7 +337,7 @@ def load(
     if deserializers is None:
         deserializers = []
     try:
-        data = pyron.load(str(file))
+        data = pyron.load(str(file), preserve_class_names=True)
     except FileNotFoundError:
         raise FileNotFoundError(f"{file} does not exist.")
     return from_dict(

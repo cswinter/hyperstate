@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hyperstate"
-version = "0.3.8"
+version = "0.3.9"
 description = "Library for managing hyperparameters and mutable state of machine learning training systems."
 authors = ["Clemens Winter <clemenswinter1@gmail.com>"]
 license = "MIT"
@@ -13,7 +13,7 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.8"
-python-ron = "^0.1.6"
+python-ron = "^0.2.1"
 click = "^8.0.3"
 msgpack = "^1.0.3"
 msgpack-numpy = "^0.4.7"

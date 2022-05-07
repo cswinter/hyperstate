@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import tempfile
 import textwrap
 import os
-from typing import Any, Dict
+from typing import Any, Dict, List, Union
 
 import numpy as np
 
@@ -20,10 +20,30 @@ class PPO:
 
 
 @dataclass(eq=True)
+class Entity:
+    features: List[str]
+
+
+@dataclass(eq=True)
+class CategoricalAction:
+    choices: List[str]
+
+
+@dataclass(eq=True)
+class SelectEntityAction:
+    pass
+
+
+Action = Union[CategoricalAction, SelectEntityAction]
+
+
+@dataclass(eq=True)
 class Config:
     lr: float
     steps: int
     ppo: PPO
+    obs_space: Dict[str, Entity]
+    action_space: List[Action]
 
 
 class Params(Serializable[Config, "State"]):
@@ -52,24 +72,34 @@ def initial_state(cfg: Config, ctx: Dict[str, Any]) -> State:
     return State(step=0, params=Params())
 
 
+CONFIG = """\
+Config(
+    lr: 0.01,
+    steps: 100,
+    ppo: PPO(
+        cliprange: 0.3,
+        gamma: 0.999,
+        lambd: 0.95,
+        entcoeff: "step: 0.1@0 0.0@100",
+        value_loss_coeff: 2,
+    ),
+    obs_space: {
+        "__global__": (features: ["step"]),
+        "unit": (features: ["x", "y", "health"]),
+    },
+    action_space: [
+        CategoricalAction(choices: ["attack", "move"]),
+        SelectEntityAction(),
+    ]
+)
+"""
+
+
 def test_checkpoint() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         # Write initial config file
-        config = """\
-        Config(
-            lr: 0.01,
-            steps: 100,
-            ppo: PPO(
-                cliprange: 0.3,
-                gamma: 0.999,
-                lambd: 0.95,
-                entcoeff: "step: 0.1@0 0.0@100",
-                value_loss_coeff: 2,
-            )
-        )
-        """
         with open(tmpdir + "/config.ron", "w") as f:
-            f.write(textwrap.dedent(config))
+            f.write(textwrap.dedent(CONFIG))
         checkpoint_dir = tmpdir + "/checkpoint"
         os.mkdir(checkpoint_dir)
         hs = StateManager(
@@ -95,6 +125,14 @@ def test_checkpoint() -> None:
                 entcoeff=0.05,
                 value_loss_coeff=2,
             ),
+            obs_space={
+                "__global__": Entity(features=["step"]),
+                "unit": Entity(features=["x", "y", "health"]),
+            },
+            action_space=[
+                CategoricalAction(choices=["attack", "move"]),
+                SelectEntityAction(),
+            ],
         )
 
 
@@ -115,22 +153,8 @@ def initial_min_state(cfg: Config, ctx: Dict[str, Any]) -> MinState:
 
 def test_ignore_extra_fields() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Write initial config file
-        config = """\
-        Config(
-            lr: 0.01,
-            steps: 100,
-            ppo: PPO(
-                cliprange: 0.3,
-                gamma: 0.999,
-                lambd: 0.95,
-                entcoeff: "step: 0.1@0 0.0@100",
-                value_loss_coeff: 2,
-            )
-        )
-        """
         with open(tmpdir + "/config.ron", "w") as f:
-            f.write(textwrap.dedent(config))
+            f.write(textwrap.dedent(CONFIG))
         checkpoint_dir = tmpdir + "/checkpoint"
         os.mkdir(checkpoint_dir)
         hs = StateManager(

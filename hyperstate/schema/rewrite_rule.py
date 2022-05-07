@@ -211,14 +211,14 @@ def _get(state_dict: Dict[str, Any], path: Sequence[str]) -> Tuple[Any, bool]:
 
 
 def _insert(
-    state_dict: Dict[str, Any],
+    state_dict: Any,
     path: Sequence[str],
     value: Any,
     create_new: bool = True,
 ) -> None:
     assert len(path) > 0
     for field in path[:-1]:
-        if field not in state_dict:
+        if isinstance(state_dict, dict) and field not in state_dict:
             if create_new:
                 state_dict[field] = {}
             else:

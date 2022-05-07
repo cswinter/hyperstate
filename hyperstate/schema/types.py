@@ -1,4 +1,4 @@
-from typing import Any, Sequence, TypeVar, Union
+from typing import Any, Sequence, TypeVar
 from enum import EnumMeta
 import enum
 import typing
@@ -13,7 +13,17 @@ import pyron
 T = TypeVar("T")
 
 
-Type = Union["Primitive", "List", "Struct", "Option", "Enum", "Literal", "Nothing"]
+Type = typing.Union[
+    "Primitive",
+    "List",
+    "Dict",
+    "Union",
+    "Struct",
+    "Option",
+    "Enum",
+    "Literal",
+    "Nothing",
+]
 
 
 @dataclass(eq=True, frozen=True)
@@ -43,8 +53,48 @@ class List:
         return f"List[{self.inner}]"
 
     def is_subtype(self, other: Type) -> bool:
-        return self == other or (
-            isinstance(other, Option) and self.is_subtype(other.type)
+        return (
+            self == other
+            or (isinstance(other, List) and self.inner.is_subtype(other.inner))
+            or (isinstance(other, Option) and self.is_subtype(other.type))
+        )
+
+
+@dataclass(eq=True, frozen=True)
+class Dict:
+    key: Type
+    val: Type
+
+    def __repr__(self) -> str:
+        return f"Dict[{self.key}, {self.val}]"
+
+    def is_subtype(self, other: Type) -> bool:
+        return (
+            self == other
+            or (
+                isinstance(other, Dict)
+                and self.key == other.key
+                and self.val.is_subtype(other.val)
+            )
+            or (isinstance(other, Option) and self.is_subtype(other.type))
+        )
+
+
+@dataclass(eq=True, frozen=True)
+class Union:
+    types: Sequence[Type]
+
+    def __repr__(self) -> str:
+        return f"Union[{', '.join(map(str, self.types))}]"
+
+    def is_subtype(self, other: Type) -> bool:
+        return (
+            self == other
+            or (
+                isinstance(other, Union)
+                and all(t.is_subtype(other) for t in self.types)
+            )
+            or (isinstance(other, Option) and self.is_subtype(other.type))
         )
 
 
@@ -173,6 +223,14 @@ def materialize_type(clz: typing.Type[Any]) -> Type:
         return Primitive(type="float")
     elif hasattr(clz, "__origin__") and clz.__origin__ == list:
         return List(materialize_type(clz.__args__[0]))
+    elif hasattr(clz, "__origin__") and clz.__origin__ == dict:
+        return Dict(
+            materialize_type(clz.__args__[0]), materialize_type(clz.__args__[1])
+        )
+    elif is_optional(clz):
+        return Option(materialize_type(clz.__args__[0]))
+    elif hasattr(clz, "__origin__") and clz.__origin__ == typing.Union:
+        return Union([materialize_type(t) for t in clz.__args__])
     elif is_dataclass(clz):
         fields = {}
         field_docs = _find_all_field_docs(clz)
@@ -202,8 +260,6 @@ def materialize_type(clz: typing.Type[Any]) -> Type:
             fields,
             clz.version() if issubclass(clz, Versioned) else None,
         )
-    elif is_optional(clz):
-        return Option(materialize_type(clz.__args__[0]))
     elif isinstance(clz, EnumMeta):
         variants = {}
         for name, value in clz.__members__.items():

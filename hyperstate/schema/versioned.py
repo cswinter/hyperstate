@@ -3,7 +3,7 @@ from collections import namedtuple
 from dataclasses import dataclass
 from inspect import isclass
 from typing import Any, Dict, List, Optional, Type, TypeVar, Callable, Tuple
-from hyperstate.schema import types
+from hyperstate.schema import namedtuple_utils, types
 from hyperstate.serde import (
     Deserializer,
     Serializer,
@@ -62,7 +62,14 @@ class VersionedDeserializer(Deserializer):
         path: str,
     ) -> Tuple[Optional[T], bool, bool]:
         if isclass(clz) and issubclass(clz, Versioned):
-            version = value.pop("version", None)
+            if isinstance(value, dict):
+                version = value.pop("version", None)
+            elif hasattr(value, "version"):
+                version = value.version
+                value = namedtuple_utils.remove_field(value, "version")
+            else:
+                version = None
+
             if version is None:
                 if self.allow_missing_version:
                     version = 0
