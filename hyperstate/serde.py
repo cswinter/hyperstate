@@ -167,7 +167,7 @@ def from_dict(
             if "!__name__" in value:
                 for arg in clz.__args__:  # type: ignore
                     if value["!__name__"] == arg.__name__:
-                        return from_dict(arg, value, deserializers, fpath, ignore_extra_fields) # type: ignore
+                        return from_dict(arg, value, deserializers, fpath, ignore_extra_fields)  # type: ignore
             for arg in clz.__args__:  # type: ignore
                 if hasattr(arg, "__args__") and arg.get_origin() == typing.Dict:
                     return from_dict(  # type: ignore
