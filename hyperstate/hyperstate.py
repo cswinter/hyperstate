@@ -44,6 +44,12 @@ T = TypeVar("T")
 
 
 class StateManager(Generic[C, S]):
+    """
+    The StateManager manages the full lifecycle of loading configs,
+    creating the initial state, applying hyperparameter schedules,
+    persisting checkpoints, and restoring state from checkpoints.
+    """
+
     def __init__(
         self,
         config_cls: Type[C],
@@ -56,8 +62,10 @@ class StateManager(Generic[C, S]):
         checkpoint_key: str = "step",
     ) -> None:
         """
-        :param config_clz: The type of the config object.
-        :param state_clz: The type of the state object.
+        Instantiate a StateManager.
+
+        :param config_cls: The type of the config object.
+        :param state_cls: The type of the state object.
         :param initial_state: A function that takes the config object and returns the initial state.
         :param init_path: Path to a config file or checkpoint.
         :param checkpoint_dir: Directory to store checkpoints. If the directory contains a valid checkpoint, the latest checkpoint will be loaded and `init_path` will be ignored.
@@ -113,6 +121,27 @@ class StateManager(Generic[C, S]):
             self._checkpoint_dir = None
         self._checkpoint_dir = value
 
+    def step(self) -> None:
+        """
+        Updates all hyperparameter schedules and persists the current state to the checkpoint directory.
+        """
+        _apply_schedules(self.state, self.config, self._schedules)
+        if self.checkpoint_dir is not None:
+            val = getattr(self.state, self.checkpoint_key)
+            assert isinstance(
+                val, int
+            ), f"checkpoint key `{self.checkpoint_key}` must be an integer, but found value `{val}` of type `{type(val)}`"
+            checkpoint_dir = (
+                self.checkpoint_dir / f"latest-{self.checkpoint_key}{val:012}"
+            )
+            if not checkpoint_dir.exists():
+                self.checkpoint(str(checkpoint_dir))
+            if self._last_checkpoint is not None:
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    shutil.move(str(self._last_checkpoint), tmpdir)
+            self._last_checkpoint = checkpoint_dir
+            # TODO: persistent checkpoints
+
     def set_deserialize_ctx(self, key: str, value: Any) -> None:
         """
         Add a value to the deserialization context.
@@ -152,27 +181,6 @@ class StateManager(Generic[C, S]):
             ignore_extra_fields=self.ignore_extra_fields,
         )[0]
 
-    def step(self) -> None:
-        """
-        Updates all hyperparameter schedules and persists the current state.
-        """
-        _apply_schedules(self.state, self.config, self._schedules)
-        if self.checkpoint_dir is not None:
-            val = getattr(self.state, self.checkpoint_key)
-            assert isinstance(
-                val, int
-            ), f"checkpoint key `{self.checkpoint_key}` must be an integer, but found value `{val}` of type `{type(val)}`"
-            checkpoint_dir = (
-                self.checkpoint_dir / f"latest-{self.checkpoint_key}{val:012}"
-            )
-            if not checkpoint_dir.exists():
-                self.checkpoint(str(checkpoint_dir))
-            if self._last_checkpoint is not None:
-                with tempfile.TemporaryDirectory() as tmpdir:
-                    shutil.move(str(self._last_checkpoint), tmpdir)
-            self._last_checkpoint = checkpoint_dir
-            # TODO: persistent checkpoints
-
     def checkpoint(self, target_dir: str) -> None:
         """
         Persist the current state to a checkpoint.
@@ -187,6 +195,9 @@ class StateManager(Generic[C, S]):
             atomic_move(str(p), target_dir)
 
     def config_dict(self) -> Any:
+        """
+        Returns the config as a nested dictionary.
+        """
         return asdict(self.config, serializers=[VersionedSerializer()])
 
 
@@ -298,18 +309,25 @@ def loads(
 
 
 def load(
-    clz: Type[T],
+    cls: Type[T],
     file: Union[str, Path, None],
     overrides: Optional[List[str]] = None,
 ) -> T:
-    if file is None and issubclass(clz, Versioned):
+    """
+    Instantiates a data class from a Rusty Object Notation (RON) file.
+
+    :param cls: The type of the dataclass to load.
+    :param file: Path to the file to load. If `None`, the dataclass is instantiated with its default values.
+    :param overrides: List of overrides in the form `"path.to.field=value"`.
+    """
+    if file is None and issubclass(cls, Versioned):
         allow_missing_version = True
     else:
         allow_missing_version = False
     if isinstance(file, str):
         file = Path(file)
     return _typed_load(
-        clz, file=file, overrides=overrides, allow_missing_version=allow_missing_version
+        cls, file=file, overrides=overrides, allow_missing_version=allow_missing_version
     )[0]
 
 
@@ -337,16 +355,16 @@ class OverridesDeserializer(Deserializer):
 
     def deserialize(
         self,
-        clz: Type[T],
+        cls: Type[T],
         value: Any,
         path: str,
     ) -> Tuple[Optional[T], bool, bool]:
         if self.applied_overrides:
             return None, False, False
 
-        schema = materialize_type(clz)
+        schema = materialize_type(cls)
         errors = []
-        assert isinstance(schema, Struct), f"{clz} is not a struct"
+        assert isinstance(schema, Struct), f"{cls} is not a struct"
         for override in self.overrides:
             keyval = override.split("=", maxsplit=1)
             if len(keyval) == 1:
@@ -358,7 +376,7 @@ class OverridesDeserializer(Deserializer):
             field = schema.find_field(fpath)
 
             if field is None:
-                errors.append(FieldNotFoundError(key, clz, fpath[-1]))
+                errors.append(FieldNotFoundError(key, cls, fpath[-1]))
                 continue
 
             if isinstance(field.type, t.Primitive) and field.type.type == "str":
@@ -403,18 +421,18 @@ class ScheduleDeserializer(Deserializer):
 
     def deserialize(
         self,
-        clz: Type[T],
+        cls: Type[T],
         value: Any,
         path: str,
     ) -> Tuple[Optional[T], bool, bool]:
-        if (clz == int or clz == float) and isinstance(value, str) and "@" in value:
+        if (cls == int or cls == float) and isinstance(value, str) and "@" in value:
             schedule = _parse_schedule(value)
             field_name = path.split(".")[-1]
 
             def update(self: T, state: Any) -> None:
                 x = getattr(state, schedule.xname)
                 value = schedule.get_value(x)
-                setattr(self, field_name, clz(value))  # type: ignore
+                setattr(self, field_name, cls(value))  # type: ignore
 
             schedules = self.schedules
             for segment in path.split(".")[:-1]:
@@ -423,7 +441,7 @@ class ScheduleDeserializer(Deserializer):
                 schedules = self.schedules[segment]
             schedules[field_name] = Schedule(update, value)
             value = schedule.get_value(0.0)
-            return clz(value), True, False  # type: ignore
+            return cls(value), True, False  # type: ignore
         return None, False, False
 
 

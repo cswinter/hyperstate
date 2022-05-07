@@ -57,6 +57,9 @@ def _parse_args(stateful: bool) -> argparse.Namespace:
 
 
 def command(cls: Type[C]) -> Callable[[Callable[[C], T]], Callable[[], T]]:
+    """
+    Decorator that creates a CLI command from a function.
+    """
 
     # Evaluate lazily to materialize type annotations
     def _command(f: Callable[[C], T]) -> Callable[[], T]:

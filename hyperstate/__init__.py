@@ -1,3 +1,6 @@
+"""
+Opinionated library for managing hyperparameters and mutable state of machine learning training systems. 
+"""
 from .hyperstate import StateManager, load, loads, dump, dumps
 from .lazy import Serializable, Lazy, blob
 from .schema.versioned import Versioned
