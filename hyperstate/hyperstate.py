@@ -402,7 +402,7 @@ class OverridesDeserializer(Deserializer):
                 val = pyron.loads(str_val, preserve_structs=True, print_errors=False)
             _value = value
             for segment in fpath[:-1]:
-                if segment not in _value:
+                if segment not in _value or _value[segment] is None:
                     _value[segment] = {}
                 _value = _value[segment]
             _value[fpath[-1]] = val
