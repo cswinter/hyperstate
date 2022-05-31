@@ -339,7 +339,7 @@ def load(
     try:
         data = pyron.load(str(file), preserve_class_names=True)
     except FileNotFoundError:
-        raise FileNotFoundError(f"{file} does not exist.")
+        raise FileNotFoundError(f"'{file}' does not exist.")
     return from_dict(
         clz,
         data,
