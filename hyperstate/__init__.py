@@ -6,10 +6,12 @@ import typing, typing_extensions
 
 if sys.version_info < (3, 8):
     from typing_extensions import get_origin as get_origin_typing_extensions
+
     def get_origin_wrapped(t):
         if sys.version_info < (3, 8):
             return get_origin_typing_extensions(t)
         return typing.get_origin(t)
+
     setattr(typing, "Literal", typing_extensions.Literal)
     setattr(typing, "get_origin", get_origin_wrapped)
     setattr(typing, "get_args", typing_extensions.get_args)
