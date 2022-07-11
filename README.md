@@ -11,9 +11,9 @@ Opinionated library for managing hyperparameter configs and mutable program stat
 - Checkpoints are (partially) human readable and can be modified in a text editor
 - Powerful tools for versioning and schema evolution that can detect breaking changes and make it easy to restructure your program while remaining backwards compatible with old checkpoints
 - Large binary objects in checkpoints can be loaded lazily only when accessed
+- Fermented-vegetable free
 - DSL for hyperparameter schedules 
 - (planned) Edit hyperparameters of running experiments on the fly without restarts
-- (planned) Usable without fermented vegetables
 
 ## Quick start guide
 
@@ -264,7 +264,7 @@ class LinearRegression(nn.Module, hyperstate.Serializable):
         return self.fc1(x)
     
     # `serialize` should return a representation of the object consisting only of
-    # primitives, containers, numpy arrays and torch tensors.
+    # primitives, containers, numpy arrays, and torch tensors.
     def serialize(self) -> Any:
         return self.state_dict()
 

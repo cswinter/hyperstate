@@ -1,5 +1,6 @@
 from abc import ABC, abstractclassmethod, abstractmethod
 import inspect
+import os
 from typing import (
     Any,
     Dict,
@@ -12,9 +13,10 @@ from typing import (
 from dataclasses import dataclass, field
 from pathlib import Path
 import msgpack
-import msgpack_numpy
 
 from hyperstate.serde import Serializer, Deserializer
+from hyperstate import msgpack_torch
+
 
 T = TypeVar("T")
 C = TypeVar("C")
@@ -43,14 +45,18 @@ class Lazy:
         if unloaded is not None and name in unloaded:
             ser_clz, config, path, legacy_pickle = unloaded[name]
             with open(path, "rb") as f:
-                # TODO: deprecate
                 if legacy_pickle:
-                    import pickle
+                    if "UNSAFE_DESERIALIZE_PICKLE" in os.environ:
+                        import pickle
 
-                    state_dict = pickle.load(f)
+                        state_dict = pickle.load(f)
+                    else:
+                        raise RuntimeError(
+                            "Deserialization of legacy snapshots containing pickled objects is not allowed as of hyperstate==0.4.0."
+                            "To enable it, set the environment variable UNSAFE_DESERIALIZE_PICKLE to 1."
+                        )
                 else:
-                    # TODO: this doesn't work for tensors :( need custom encoder/decoder that converts numpy arrays back into tensors?
-                    state_dict = msgpack.unpack(f, object_hook=msgpack_numpy.decode)
+                    state_dict = msgpack.unpack(f, object_hook=msgpack_torch.decode)
             # TODO: recursion check
             value = ser_clz.deserialize(
                 state_dict,
@@ -125,15 +131,11 @@ class LazySerializer(Serializer):
         named_tuples: bool,
     ) -> Tuple[Any, bool]:
         if isinstance(value, Serializable):
-            import dill
-
-            path = "state." + path.replace("[", "_").replace("]", "") + ".pickle"
-            self.blobs[path] = dill.dumps(value.serialize())
-            return "<blob:pickle>", True
-            # TODO: make msgpack work with pytorch tensors
-            # state_dict = _dict_to_cpu(value.state_dict())
-            # blobs[field_name] = msgpack.packb(state_dict, default=msgpack_numpy.encode)
-            # value = "<blob:msgpack>"
+            path = "state." + path.replace("[", "_").replace("]", "") + ".msgpack"
+            self.blobs[path] = msgpack.packb(
+                value.serialize(), default=msgpack_torch.encode
+            )
+            return "<blob:msgpack>", True
         return None, False
 
 
