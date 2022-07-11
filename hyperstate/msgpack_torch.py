@@ -4,7 +4,7 @@ import numpy as np
 try:
     import torch
 except ImportError:
-    torch = None  # type: ignore
+    torch = None
 
 
 def encode(obj: Any, chain: Optional[Callable[[Any], Any]] = None) -> Any:
