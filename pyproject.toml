@@ -19,6 +19,7 @@ msgpack = "^1.0.3"
 dill = "^0.3.4"
 docstring-parser = "^0.13"
 numpy = "^1.21.4"
+typing-extensions = "^4.3.0"
 
 [tool.poetry.dev-dependencies]
 black = "^22.3"
