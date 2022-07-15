@@ -56,7 +56,9 @@ class Lazy:
                             "To enable it, set the environment variable UNSAFE_DESERIALIZE_PICKLE to 1."
                         )
                 else:
-                    state_dict = msgpack.unpack(f, object_hook=msgpack_torch.decode, strict_map_key=False)
+                    state_dict = msgpack.unpack(
+                        f, object_hook=msgpack_torch.decode, strict_map_key=False
+                    )
             # TODO: recursion check
             value = ser_clz.deserialize(
                 state_dict,
