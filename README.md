@@ -53,7 +53,7 @@ if __name__ == "__main__":
     parser.add_argument("--config", type=str, default=None, help="Path to config file")
     parser.add_argument("--hps", nargs="+", help="Override hyperparameter value")
     args = parser.parse_args()
-    config = hyperstate.load(Config, path=args.config, overrides=args.hps)
+    config = hyperstate.load(Config, file=args.config, overrides=args.hps)
     print(config)
 ```
 
@@ -117,7 +117,7 @@ class Config:
     steps: int
 
 
-config = hyperstate.load(Config, path="config.ron", overrides=["optimizer.lr=0.1", "steps=100"])
+config = hyperstate.load(Config, file="config.ron", overrides=["optimizer.lr=0.1", "steps=100"])
 ```
 
 ## Versioning
