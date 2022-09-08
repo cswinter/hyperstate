@@ -1,6 +1,7 @@
 # HyperState
 
 [![PyPI](https://img.shields.io/pypi/v/hyperstate.svg?style=flat-square)](https://pypi.org/project/hyperstate/)
+[![Documentation Status](https://readthedocs.org/projects/entity-gym/badge/?version=latest&style=flat-square)](https://hyperstate.readthedocs.io/en/latest/?badge=latest)
 
 Opinionated library for managing hyperparameter configs and mutable program state of machine learning training systems.
 
