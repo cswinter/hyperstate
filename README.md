@@ -18,6 +18,12 @@ Opinionated library for managing hyperparameter configs and mutable program stat
 
 ## Quick start guide
 
+Install with pip:
+
+```
+pip install hyperstate
+```
+
 All you need to use HyperState is a (nested) dataclass for your hyperparameters:
 
 ```python
