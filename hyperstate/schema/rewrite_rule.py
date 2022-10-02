@@ -192,6 +192,8 @@ def _remove(state_dict: Dict[str, Any], path: Sequence[str]) -> Tuple[Any, bool]
         if field not in state_dict:
             return None, False
         state_dict = state_dict[field]
+        if state_dict is None:
+            return None, False
     if not isinstance(state_dict, dict) or path[-1] not in state_dict:
         return None, False
     value = state_dict[path[-1]]
