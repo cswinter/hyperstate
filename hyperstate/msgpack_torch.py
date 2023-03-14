@@ -33,7 +33,7 @@ def decode(obj: Any, chain: Optional[Callable[[Any], Any]] = None) -> Any:
                 shape=obj[b"shape"],
             )
             if obj[b"__tensor__"] == "torch" and torch is not None:
-                return torch.from_numpy(tensor)
+                return torch.from_numpy(np.copy(tensor))
             else:
                 return tensor
         else:
