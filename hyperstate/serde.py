@@ -91,9 +91,37 @@ def asdict(
             return namedtuple(value.__class__.__name__, attrs.keys())(**attrs)
         else:
             return attrs
-    elif isinstance(value, dict) or isinstance(value, list):
-        # TODO: recurse
-        return value
+    elif isinstance(value, dict):
+        return {
+            k: asdict(
+                value=v,
+                named_tuples=named_tuples,
+                serializers=serializers,
+                file=k if file == "" else f"{file}.{k}",
+            )
+            for k, v in value.items()
+        }
+    elif isinstance(value, list):
+        return [
+            asdict(
+                v,
+                named_tuples,
+                serializers,
+                file=str(i) if file == "" else f"{file}.{i}",
+
+            )
+            for i, v in enumerate(value)
+        ]
+    elif isinstance(value, tuple):
+        return tuple(
+            asdict(
+                v,
+                named_tuples,
+                serializers,
+                file=str(i) if file == "" else f"{file}.{i}",
+            )
+            for i, v in enumerate(value)
+        )
     elif isinstance(value, Enum):
         return value.name
     elif (
@@ -194,6 +222,15 @@ def from_dict(
         and isinstance(value, list)
     ):
         return [from_dict(clz.__args__[0], v, deserializers, fpath + f"[{i}]") for i, v in enumerate(value)]  # type: ignore
+    elif (
+        hasattr(clz, "__args__")
+        and clz == Tuple[clz.__args__]  # type: ignore
+        and isinstance(value, tuple)
+    ):
+        return tuple(
+            from_dict(clz.__args__[i], v, deserializers, fpath + f"[{i}]")
+            for i, v in enumerate(value)
+        )
     elif (
         hasattr(clz, "__args__")
         and len(clz.__args__) == 2  # type: ignore

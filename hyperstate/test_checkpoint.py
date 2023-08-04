@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import tempfile
 import textwrap
 import os
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Tuple, Union
 
 import numpy as np
 
@@ -17,6 +17,7 @@ class PPO:
     lambd: float = 0.95
     entcoeff: float = 0.01
     value_loss_coeff: float = 1
+    betas: Tuple[float, float] = (0.9, 0.98)
 
 
 @dataclass(eq=True)

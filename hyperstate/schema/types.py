@@ -61,6 +61,25 @@ class List:
 
 
 @dataclass(eq=True, frozen=True)
+class Tuple:
+    inner: typing.List[Type]
+
+    def __repr__(self) -> str:
+        return f"Tuple[{self.inner}]"
+
+    def is_subtype(self, other: Type) -> bool:
+        return (
+            self == other
+            or (
+                isinstance(other, Tuple)
+                and all(t.is_subtype(o) for t, o in zip(self.inner, other.inner))
+                and len(self.inner) == len(other.inner)
+            )
+            or (isinstance(other, Option) and self.is_subtype(other.type))
+        )
+
+
+@dataclass(eq=True, frozen=True)
 class Dict:
     key: Type
     val: Type
@@ -223,6 +242,8 @@ def materialize_type(clz: typing.Type[Any]) -> Type:
         return Primitive(type="float")
     elif hasattr(clz, "__origin__") and clz.__origin__ == list:
         return List(materialize_type(clz.__args__[0]))
+    elif hasattr(clz, "__origin__") and clz.__origin__ == tuple:
+        return Tuple([materialize_type(arg) for arg in clz.__args__])
     elif hasattr(clz, "__origin__") and clz.__origin__ == dict:
         return Dict(
             materialize_type(clz.__args__[0]), materialize_type(clz.__args__[1])
@@ -268,6 +289,7 @@ def materialize_type(clz: typing.Type[Any]) -> Type:
     elif typing.get_origin(clz) == typing.Literal:
         return Literal(list(typing.get_args(clz)))
     else:
+        breakpoint()
         raise ValueError(f"Unsupported type: {clz}")
 
 
