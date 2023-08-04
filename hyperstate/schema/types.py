@@ -16,6 +16,7 @@ T = TypeVar("T")
 Type = typing.Union[
     "Primitive",
     "List",
+    "Tuple",
     "Dict",
     "Union",
     "Struct",
