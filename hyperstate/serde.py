@@ -108,7 +108,6 @@ def asdict(
                 named_tuples,
                 serializers,
                 file=str(i) if file == "" else f"{file}.{i}",
-
             )
             for i, v in enumerate(value)
         ]
@@ -228,7 +227,7 @@ def from_dict(
         and isinstance(value, tuple)
     ):
         return tuple(
-            from_dict(clz.__args__[i], v, deserializers, fpath + f"[{i}]")
+            from_dict(clz.__args__[i], v, deserializers, fpath + f"[{i}]")  # type: ignore
             for i, v in enumerate(value)
         )
     elif (
